@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CioalTutors Details List</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tailwind Configuration for Custom Colors -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        // Custom colors derived from #eaff7f for the details section
+                        'details-main': '#eaff7f',
+                        'details-hover': '#d3e372', // Slightly darker for hover effect
+                        'details-bg': '#f7ffdf',    // Very light background for the collapsed section
+                        'details-border': '#eaff7f',
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* Custom Theme Colors */
+        :root {
+            --color-primary-green: #52c41a; 
+            --color-dark-green: #44a516;
+            --color-light-green: #e9f5e1;
+        }
+
+        /* Custom scrollbar styling */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: var(--color-dark-green);
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: var(--color-light-green);
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f7f6;
+        }
+
+        /* Loading spinner animation */
+        .spinner {
+            border: 4px solid #e5e7eb;
+            border-top: 4px solid var(--color-primary-green);
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-4">
+
+    <!-- Main Container -->
+    <div class="w-full max-w-md bg-white rounded-xl shadow-2xl overflow-hidden mt-8 md:mt-16">
+
+        <!-- Header/Logo Section -->
+        <header class="p-0 flex flex-col items-center justify-center rounded-t-xl">
+            <img id="logo" 
+                 src="https://i.ibb.co/YFKnnBj8/Cioal-Tutors-Banner.png" 
+                 alt="CioalTutors Logo" 
+                 class="w-full h-auto"
+                 onerror="this.outerHTML='<div id=\'logo-placeholder\' class=\'w-full py-4 bg-[var(--color-dark-green)] shadow-lg\'><span class=\'text-white text-xl font-bold tracking-wider\'>CioalTutors</span></div>';"
+            >
+            <!-- Updated Heading and Sub-text -->
+            <div class="pt-4 pb-6 px-6 text-center">
+                <h1 class="text-gray-800 text-2xl font-extrabold mb-1">Available Open Tuitions</h1>
+                <p class="text-gray-600 text-xs font-medium">The top ones are most recent, down ones are older</p>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="p-6">
+            <!-- Loading State -->
+            <div id="loadingState" class="flex flex-col items-center justify-center p-8 text-gray-700">
+                <div class="spinner"></div>
+                <p class="mt-4 font-semibold text-lg">Loading active tuition details...</p>
+            </div>
+
+            <!-- Application Content (Initially Hidden) -->
+            <div id="appContent" class="hidden">
+                
+                <!-- Open Tuitions Display Section -->
+                <div class="pt-4">
+                    <div id="openTuitionsSection" 
+                         class="max-h-96 overflow-y-auto custom-scrollbar p-2 bg-gray-50 rounded-lg border border-gray-100">
+                        <p class="text-sm text-gray-500 text-center">Fetching list...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Error State (Initially Hidden) -->
+            <div id="errorState" class="hidden text-center p-8">
+                <p class="text-red-600 font-bold text-xl">Data Load Error</p>
+                <p class="text-sm text-gray-600 mt-3">We couldn't fetch the data. Please check the provided URL and sheet structure.</p>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Constants
+        const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTfIb0otzFTzedtVI6ad2Dsqp5PMMcU74q6PMlCPoyxengcTujUfdGj1emWbBRh-lA3Awouxcbgo86o/pub?gid=0&single=true&output=csv';
+        const TUITION_NUMBER_INDEX = 0; // Tuition Number (first column)
+        const STATUS_INDEX = 1;         // Status (second column)
+        const SUBJECTS_INDEX = 2;       // Subjects
+        const CLASS_INDEX = 3;          // Class
+        const WHATSAPP_NUMBER = '923459069492'; // Target WhatsApp number (without +)
+
+        // Global data store
+        let openTuitionsData = []; 
+
+        // DOM Elements
+        const openTuitionsSection = document.getElementById('openTuitionsSection');
+        const loadingState = document.getElementById('loadingState');
+        const appContent = document.getElementById('appContent');
+        const errorState = document.getElementById('errorState');
+
+        // Helper function to clean a CSV cell value (removes starting/ending quotes and unescapes internal quotes)
+        const cleanValue = (val) => val ? val.trim().replace(/^"|"$/g, '').replace(/""/g, '"') : '';
+
+        /**
+         * Initiates a WhatsApp chat for the selected tuition number.
+         * @param {string} tuitionNumber - The number of the tuition the user wants to apply for.
+         */
+        function applyForTuition(tuitionNumber) {
+            const message = `I want to apply for the Tuition ${tuitionNumber}`;
+            const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
+            window.open(whatsappUrl, '_blank');
+        }
+
+        /**
+         * Toggles the visibility of the detailed information for a specific tuition card.
+         * @param {string} tuitionNumber - The number used to uniquely identify the details element.
+         */
+        function toggleDetails(tuitionNumber) {
+            const detailsElement = document.getElementById(`details-${tuitionNumber}`);
+            const buttonElement = document.getElementById(`btn-details-${tuitionNumber}`);
+
+            if (detailsElement.classList.contains('hidden')) {
+                // Show details
+                detailsElement.classList.remove('hidden');
+                buttonElement.textContent = 'Hide Details';
+            } else {
+                // Hide details
+                detailsElement.classList.add('hidden');
+                buttonElement.textContent = 'View Details';
+            }
+        }
+
+
+        /**
+         * Extracts data from the CSV using a robust, hybrid splitting strategy.
+         * This strategy strictly isolates the first four columns and then uses string manipulation 
+         * and quote detection to accurately split Area/City and Details.
+         * @param {string} csvText - The raw CSV string.
+         */
+        function extractDataAndBuildMap(csvText) {
+            const allLines = csvText.trim().split('\n').filter(line => line.length > 0);
+            if (allLines.length <= 1) return;
+
+            openTuitionsData = []; // Reset open list
+
+            for (let i = 1; i < allLines.length; i++) {
+                const rawLine = allLines[i];
+                
+                // 1. Find the 4th comma to separate the first 4 fixed columns
+                let commaCount = 0;
+                let splitPoint4 = -1;
+                for (let j = 0; j < rawLine.length; j++) {
+                    if (rawLine[j] === ',') {
+                        commaCount++;
+                        if (commaCount === 4) {
+                            splitPoint4 = j;
+                            break;
+                        }
+                    }
+                }
+                
+                if (splitPoint4 === -1) { continue; }
+
+                // 2. Extract first 4 values
+                // The substring ends *before* the 4th comma.
+                const initialValues = rawLine.substring(0, splitPoint4).split(',');
+                
+                let tuitionNumber = cleanValue(initialValues[TUITION_NUMBER_INDEX]);
+                let status = cleanValue(initialValues[STATUS_INDEX]);
+                
+                if (tuitionNumber.length === 0 || !/^\d+$/.test(tuitionNumber) || status.length === 0) {
+                     continue; 
+                }
+
+                let subjects = cleanValue(initialValues[SUBJECTS_INDEX]);
+                let className = cleanValue(initialValues[CLASS_INDEX]);
+                
+                // 3. The remaining string contains Area/City and Details
+                // The substring starts *after* the 4th comma (the one that follows Class)
+                const remainingString = rawLine.substring(splitPoint4 + 1); 
+                
+                let areaCity = 'N/A';
+                let details = 'No additional details provided.';
+
+                // Find the split point between Area/City (Col 4) and Details (Col 5).
+                // We prioritize finding the delimiter `","` which reliably separates quoted fields.
+                const delimiter = '","';
+                const quoteSplitIndex = remainingString.indexOf(delimiter); 
+
+                if (quoteSplitIndex !== -1) {
+                    // Scenario A: Found the reliable `","` delimiter.
+                    
+                    // Area/City: Everything up to the comma of the delimiter. Includes the closing quote if Col 4 was quoted.
+                    const rawAreaCity = remainingString.substring(0, quoteSplitIndex);
+                    areaCity = cleanValue(rawAreaCity);
+                    
+                    // Details: Everything after the delimiter (it starts with the opening quote of Col 5).
+                    const rawDetails = remainingString.substring(quoteSplitIndex + delimiter.length);
+                    details = cleanValue(rawDetails);
+
+                } else {
+                    // Scenario B: No clean `","` delimiter. Split by the first comma found.
+                    
+                    const firstCommaIndex = remainingString.indexOf(',');
+
+                    if (firstCommaIndex !== -1) {
+                        // Split by the first comma found (Area/City, Details)
+                        areaCity = cleanValue(remainingString.substring(0, firstCommaIndex));
+                        details = cleanValue(remainingString.substring(firstCommaIndex + 1));
+                    } else if (remainingString.trim().length > 0) {
+                        // Only Area/City remaining, Details is empty.
+                        areaCity = cleanValue(remainingString);
+                        details = 'No additional details provided.';
+                    } else {
+                        // Both Area/City and Details are empty.
+                        areaCity = 'N/A';
+                        details = 'No additional details provided.';
+                    }
+                }
+
+                // Final cleanup: ensure Area/City is not empty
+                if (areaCity.trim() === '') {
+                    areaCity = 'N/A';
+                }
+                
+                // --- Data Storage ---
+                const statusUpper = status.toUpperCase();
+                if (statusUpper.includes('ACTIVE') || statusUpper.includes('OPEN')) {
+                    openTuitionsData.push({
+                        tuitionNumber: tuitionNumber,
+                        subjects: subjects,
+                        className: className,
+                        areaCity: areaCity,
+                        details: details,
+                    });
+                }
+            }
+        }
+
+        /**
+         * Populates the list of open tuitions using data from all new columns.
+         */
+        function populateOpenTuitions() {
+            if (openTuitionsData.length === 0) {
+                openTuitionsSection.innerHTML = '<p class="text-sm text-gray-500 text-center py-2">No tuitions are currently marked as Open/Active.</p>';
+                return;
+            }
+
+            // 1. Reverse the array to show the newest (last in CSV) at the top
+            const reversedData = [...openTuitionsData].reverse();
+
+            // 2. Generate HTML with full cell value
+            const listHtml = reversedData.map(item => {
+                
+                // Helper to format the detail text, replacing newlines/commas with <br>
+                const formatDetail = (text) => text.replace(/(\r?\n)/g, '<br>'); // Only replace newlines for formatting
+
+                return `
+                <div class="p-4 bg-white rounded-lg shadow-md mb-4 border-l-4 border-green-500 text-left">
+                    <p class="text-lg font-bold text-gray-900 mb-3">Tuition #${item.tuitionNumber}</p>
+                    
+                    <div class="space-y-1 text-sm text-gray-700 mb-4">
+                        <p><span class="font-semibold text-gray-800">Subjects:</span> ${item.subjects || 'N/A'}</p>
+                        <p><span class="font-semibold text-gray-800">Class:</span> ${item.className || 'N/A'}</p>
+                        <p><span class="font-semibold text-gray-800">Area/City:</span> ${item.areaCity || 'N/A'}</p>
+                    </div>
+
+                    <!-- Details and Apply Buttons (Left and Right Aligned) -->
+                    <div class="flex justify-between items-center space-x-2">
+                        <!-- Details Button (Left Aligned) -->
+                        <button 
+                            id="btn-details-${item.tuitionNumber}"
+                            onclick="toggleDetails('${item.tuitionNumber}')" 
+                            class="flex-grow mr-2 bg-details-main hover:bg-details-hover text-gray-900 font-bold py-2 px-4 rounded-lg shadow-md transition duration-150 ease-in-out transform hover:scale-[1.01] focus:outline-none focus:ring-2 focus:ring-details-main focus:ring-opacity-50 text-sm">
+                            View Details
+                        </button>
+                        
+                        <!-- Apply Button (Right Aligned) -->
+                        <button 
+                            onclick="applyForTuition('${item.tuitionNumber}')" 
+                            class="flex-grow ml-2 bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-150 ease-in-out transform hover:scale-[1.01] focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 text-sm">
+                            Apply Now
+                        </button>
+                    </div>
+
+                    <!-- Collapsible Details Section (Initially Hidden) -->
+                    <div id="details-${item.tuitionNumber}" class="hidden mt-4 p-3 bg-details-bg rounded-lg border border-details-border transition-all duration-300 ease-in-out">
+                        <p class="font-semibold text-gray-800 mb-1">Full Details:</p>
+                        <p class="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">${formatDetail(item.details)}</p>
+                    </div>
+
+                </div>
+            `;
+            }).join('');
+
+            openTuitionsSection.innerHTML = listHtml;
+        }
+
+
+        /**
+         * Fetches CSV data from the URL and initializes the application.
+         */
+        async function initApp() {
+            loadingState.classList.remove('hidden');
+            appContent.classList.add('hidden');
+            errorState.classList.add('hidden');
+
+            try {
+                // Add timestamp to prevent caching, ensuring we get the latest data
+                const urlToFetch = `${CSV_URL}&t=${new Date().getTime()}`;
+                const response = await fetch(urlToFetch);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const csvText = await response.text();
+                
+                // Extract data and filter open tuitions
+                extractDataAndBuildMap(csvText);
+                
+                populateOpenTuitions(); // Populate the details column list
+                
+                // Switch to app content view
+                loadingState.classList.add('hidden');
+                appContent.classList.remove('hidden');
+                
+
+            } catch (error) {
+                console.error('Failed to load or process data:', error);
+                loadingState.classList.add('hidden');
+                errorState.classList.remove('hidden');
+            }
+        }
+        
+        // Start the application when the window loads
+        window.onload = initApp;
+
+    </script>
+</body>
+</html>
