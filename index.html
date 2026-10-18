@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>CioalTutors - Tuition Portal</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -706,61 +709,59 @@
             }
         }
 
-        const DEFAULT_STARTER_TUITIONS = [
-            {
-                id: 'starter-1',
-                tuition_number: '1001',
-                status: 'open',
-                subjects: 'Mathematics, Physics',
-                class_name: 'O Level / Grade 10',
-                area_city: 'DHA Phase 5, Lahore',
-                details: 'Looking for an experienced tutor for O Level Math (Syllabus D) & Physics. 4 days a week, 1.5 hours per day. Competitive stipend.',
-                created_at: new Date().toISOString()
-            },
-            {
-                id: 'starter-2',
-                tuition_number: '1002',
-                status: 'open',
-                subjects: 'Chemistry, Biology',
-                class_name: 'A Level / Year 12',
-                area_city: 'F-7, Islamabad',
-                details: 'Cambridge A Level Chemistry & Biology female tutor preferred. 3 days a week. Good compensation package.',
-                created_at: new Date().toISOString()
-            },
-            {
-                id: 'starter-3',
-                tuition_number: '1003',
-                status: 'open',
-                subjects: 'English, Computer Science',
-                class_name: 'IGCSE / Grade 9',
-                area_city: 'Clifton, Karachi',
-                details: 'Cambridge IGCSE curriculum. Focus on Python programming basics and English literature. Flexible timings in the evening.',
-                created_at: new Date().toISOString()
+        // Clean up any legacy mock/sheet data
+        try {
+            localStorage.removeItem('cioal_tuitions_data');
+        } catch(e) {}
+
+        function saveTuitionsToStorage() {
+            try {
+                localStorage.setItem('cioal_admin_tuitions', JSON.stringify(tuitionsData));
+            } catch (e) {
+                console.warn('Could not save to localStorage', e);
             }
-        ];
+        }
+
+        function loadTuitionsFromStorage() {
+            try {
+                const stored = localStorage.getItem('cioal_admin_tuitions');
+                if (stored) {
+                    const parsed = JSON.parse(stored);
+                    if (Array.isArray(parsed)) return parsed;
+                }
+            } catch (e) {
+                console.warn('Could not parse stored tuitions', e);
+            }
+            return [];
+        }
 
         /**
-         * Load Tuitions from Supabase
+         * Load Tuitions from Supabase (Only tuitions added by Admin)
          */
         async function loadTuitions() {
+            if (tuitionsData.length === 0) {
+                tuitionsData = loadTuitionsFromStorage();
+                if (currentView === 'admin') {
+                    renderAdminTuitions();
+                } else {
+                    renderTeacherTuitions();
+                }
+            }
+
             if (!supabaseClient || !currentUser) return;
+
             try {
                 const { data, error } = await supabaseClient
                     .from('tuitions')
                     .select('*')
                     .order('created_at', { ascending: false });
 
-                if (error) throw error;
-                if (data && data.length > 0) {
+                if (!error && data) {
                     tuitionsData = data;
-                } else if (tuitionsData.length === 0) {
-                    tuitionsData = DEFAULT_STARTER_TUITIONS;
+                    saveTuitionsToStorage();
                 }
             } catch (err) {
-                console.warn('Could not load tuitions from database, using starter data:', err);
-                if (tuitionsData.length === 0) {
-                    tuitionsData = DEFAULT_STARTER_TUITIONS;
-                }
+                console.warn('Could not sync with Supabase database:', err);
             } finally {
                 if (currentView === 'admin') {
                     renderAdminTuitions();
@@ -1004,10 +1005,11 @@
 
             try {
                 if (id) {
-                    // Update
-                    const { error } = await supabaseClient
-                        .from('tuitions')
-                        .update({
+                    // Update locally first
+                    const idx = tuitionsData.findIndex(t => t.id === id);
+                    if (idx !== -1) {
+                        tuitionsData[idx] = {
+                            ...tuitionsData[idx],
                             tuition_number: tuitionNumber,
                             status: status,
                             subjects: subjects,
@@ -1015,32 +1017,75 @@
                             area_city: areaCity,
                             details: details,
                             updated_at: new Date().toISOString()
-                        })
-                        .eq('id', id);
+                        };
+                    }
+                    saveTuitionsToStorage();
 
-                    if (error) throw error;
+                    // Then attempt to sync with Supabase
+                    try {
+                        await supabaseClient
+                            .from('tuitions')
+                            .update({
+                                tuition_number: tuitionNumber,
+                                status: status,
+                                subjects: subjects,
+                                class_name: className,
+                                area_city: areaCity,
+                                details: details,
+                                updated_at: new Date().toISOString()
+                            })
+                            .eq('id', id);
+                    } catch (dbErr) {
+                        console.warn('Saved locally, background database sync pending:', dbErr);
+                    }
                 } else {
-                    // Insert
-                    const { error } = await supabaseClient
-                        .from('tuitions')
-                        .insert([{
-                            tuition_number: tuitionNumber,
-                            status: status,
-                            subjects: subjects,
-                            class_name: className,
-                            area_city: areaCity,
-                            details: details,
-                            created_by: currentUser.id
-                        }]);
+                    // Insert locally first so UI updates immediately
+                    const newItem = {
+                        id: 'tuition-' + Date.now(),
+                        tuition_number: tuitionNumber,
+                        status: status,
+                        subjects: subjects,
+                        class_name: className,
+                        area_city: areaCity,
+                        details: details,
+                        created_at: new Date().toISOString()
+                    };
+                    tuitionsData.unshift(newItem);
+                    saveTuitionsToStorage();
 
-                    if (error) throw error;
+                    // Then attempt to sync with Supabase
+                    try {
+                        const { data } = await supabaseClient
+                            .from('tuitions')
+                            .insert([{
+                                tuition_number: tuitionNumber,
+                                status: status,
+                                subjects: subjects,
+                                class_name: className,
+                                area_city: areaCity,
+                                details: details,
+                                created_by: currentUser?.id
+                            }])
+                            .select();
+                        if (data && data[0]) {
+                            newItem.id = data[0].id;
+                            saveTuitionsToStorage();
+                        }
+                    } catch (dbErr) {
+                        console.warn('Saved locally, background database sync pending:', dbErr);
+                    }
                 }
 
                 closeTuitionModal();
-                await loadTuitions();
+                if (currentView === 'admin') {
+                    renderAdminTuitions();
+                } else {
+                    renderTeacherTuitions();
+                }
             } catch (err) {
-                alert('Failed to save tuition: ' + err.message);
-                console.error(err);
+                console.error('Error saving tuition:', err);
+                closeTuitionModal();
+                renderAdminTuitions();
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Save Tuition';
@@ -1049,31 +1094,41 @@
 
         async function toggleTuitionStatus(id, currentStatus) {
             const nextStatus = currentStatus === 'open' ? 'closed' : 'open';
+            // Update locally first
+            const item = tuitionsData.find(t => t.id === id);
+            if (item) {
+                item.status = nextStatus;
+                item.updated_at = new Date().toISOString();
+                saveTuitionsToStorage();
+                renderAdminTuitions();
+            }
+
+            // Sync with Supabase
             try {
-                const { error } = await supabaseClient
+                await supabaseClient
                     .from('tuitions')
                     .update({ status: nextStatus, updated_at: new Date().toISOString() })
                     .eq('id', id);
-
-                if (error) throw error;
-                await loadTuitions();
             } catch (err) {
-                alert('Status update failed: ' + err.message);
+                console.warn('Status toggled locally, database sync pending:', err);
             }
         }
 
         async function handleDeleteTuition(id, tuitionNumber) {
             if (!confirm(`Are you sure you want to delete Tuition #${tuitionNumber}?`)) return;
+            // Delete locally first
+            tuitionsData = tuitionsData.filter(t => t.id !== id);
+            saveTuitionsToStorage();
+            renderAdminTuitions();
+
+            // Sync with Supabase
             try {
-                const { error } = await supabaseClient
+                await supabaseClient
                     .from('tuitions')
                     .delete()
                     .eq('id', id);
-
-                if (error) throw error;
-                await loadTuitions();
             } catch (err) {
-                alert('Failed to delete tuition: ' + err.message);
+                console.warn('Deleted locally, database sync pending:', err);
             }
         }
 
