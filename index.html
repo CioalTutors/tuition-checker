@@ -11,7 +11,7 @@
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Application Config -->
-    <script src="config.js"></script>
+    <script src="config.js?v=2"></script>
 
     <script>
         tailwind.config = {
@@ -459,33 +459,103 @@
         async function checkAuthState() {
             showLoading(true);
 
-            // Listen for auth state changes (sign in, sign out, token refresh)
+            // Safety timeout: Never stay stuck on the loading spinner for more than 1.5s
+            const loadingSafetyTimer = setTimeout(() => {
+                showLoading(false);
+                if (currentUser) {
+                    updateUIForUser();
+                } else {
+                    updateUIForGuest();
+                }
+            }, 1500);
+
+            try {
+                // Initial session check
+                const { data: { session }, error } = await supabaseClient.auth.getSession();
+                if (session && session.user) {
+                    currentUser = session.user;
+                    initUserProfileFromSession();
+                    clearTimeout(loadingSafetyTimer);
+                    showLoading(false);
+                    updateUIForUser();
+
+                    // Non-blocking background sync
+                    syncBackgroundData();
+                } else {
+                    clearTimeout(loadingSafetyTimer);
+                    showLoading(false);
+                    updateUIForGuest();
+                }
+            } catch (err) {
+                console.warn('Initial session check error:', err);
+                clearTimeout(loadingSafetyTimer);
+                showLoading(false);
+                updateUIForGuest();
+            }
+
+            // Listen for subsequent auth state changes (sign in, sign out, token refresh)
             supabaseClient.auth.onAuthStateChange(async (event, session) => {
                 if (session && session.user) {
                     currentUser = session.user;
-                    await fetchProfile();
-                    await loadTuitions();
-                    setupRealtime();
+                    initUserProfileFromSession();
+                    showLoading(false);
                     updateUIForUser();
+                    syncBackgroundData();
                 } else {
                     currentUser = null;
                     userProfile = null;
                     tuitionsData = [];
+                    showLoading(false);
                     updateUIForGuest();
                 }
-                showLoading(false);
             });
+        }
 
-            // Initial session check
-            const { data: { session }, error } = await supabaseClient.auth.getSession();
-            if (!session) {
-                showLoading(false);
-                updateUIForGuest();
+        /**
+         * Initialize user profile immediately from session info
+         */
+        function initUserProfileFromSession() {
+            if (!currentUser) return;
+            const email = (currentUser.email || '').toLowerCase().trim();
+            const adminList = (APP_CONFIG.ADMIN_EMAILS || []).map(e => e.toLowerCase().trim());
+            const isAdmin = adminList.includes(email) || 
+                            email === 'cambridgeigcseoaleveltutors@gmail.com' || 
+                            userProfile?.role === 'admin';
+
+            const name = currentUser.user_metadata?.full_name || 
+                         currentUser.user_metadata?.name || 
+                         email.split('@')[0];
+            const avatar = currentUser.user_metadata?.avatar_url || 
+                           currentUser.user_metadata?.picture || '';
+
+            userProfile = {
+                role: isAdmin ? 'admin' : (userProfile?.role || 'teacher'),
+                full_name: name,
+                email: email,
+                avatar_url: avatar
+            };
+
+            // Admins land on the Admin Dashboard by default
+            if (isAdmin) {
+                currentView = 'admin';
             }
         }
 
         /**
-         * Fetch or create user profile from 'profiles' table
+         * Background data sync that won't block the UI
+         */
+        async function syncBackgroundData() {
+            try {
+                await fetchProfile();
+                await loadTuitions();
+                setupRealtime();
+            } catch (e) {
+                console.warn('Background sync error:', e);
+            }
+        }
+
+        /**
+         * Fetch user profile from 'profiles' table if available
          */
         async function fetchProfile() {
             if (!currentUser) return;
@@ -498,24 +568,18 @@
 
                 if (data) {
                     userProfile = data;
-                } else {
-                    // Fallback default role
-                    userProfile = {
-                        role: 'teacher',
-                        full_name: currentUser.user_metadata?.full_name || currentUser.email.split('@')[0],
-                        email: currentUser.email,
-                        avatar_url: currentUser.user_metadata?.avatar_url || ''
-                    };
                 }
             } catch (e) {
-                console.warn('Profile fetch error, using defaults:', e);
-                userProfile = {
-                    role: 'teacher',
-                    full_name: currentUser.user_metadata?.full_name || currentUser.email.split('@')[0],
-                    email: currentUser.email,
-                    avatar_url: currentUser.user_metadata?.avatar_url || ''
-                };
+                console.warn('Profile fetch error, using session defaults:', e);
             }
+
+            // Always ensure admin email stays admin
+            const email = (currentUser.email || '').toLowerCase().trim();
+            const adminList = (APP_CONFIG.ADMIN_EMAILS || []).map(e => e.toLowerCase().trim());
+            if (adminList.includes(email) || email === 'cambridgeigcseoaleveltutors@gmail.com') {
+                userProfile.role = 'admin';
+            }
+            updateUIForUser();
         }
 
         /**
@@ -544,9 +608,15 @@
                 userAvatar.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=52c41a&color=fff`;
             }
 
-            // Role Badge
-            const isAdmin = userProfile?.role === 'admin';
+            // Role Badge & Admin Navigation
+            const email = (currentUser?.email || userProfile?.email || '').toLowerCase().trim();
+            const adminList = (APP_CONFIG.ADMIN_EMAILS || []).map(e => e.toLowerCase().trim());
+            const isAdmin = adminList.includes(email) || 
+                            email === 'cambridgeigcseoaleveltutors@gmail.com' || 
+                            userProfile?.role === 'admin';
+
             if (isAdmin) {
+                userProfile.role = 'admin';
                 roleBadge.textContent = 'Admin';
                 roleBadge.className = 'text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300';
                 adminNav.classList.remove('hidden');
@@ -602,11 +672,18 @@
                 return;
             }
 
+            if (window.location.protocol === 'file:') {
+                alert('Google Sign-In cannot redirect back to a raw local file (file:///).\n\nPlease run a local web server (run "python -m http.server 8000" in this folder and open http://localhost:8000) or deploy to GitHub Pages.');
+                return;
+            }
+
             try {
+                // Remove existing hash from current URL for clean redirect
+                const redirectUrl = window.location.origin + window.location.pathname;
                 const { error } = await supabaseClient.auth.signInWithOAuth({
                     provider: 'google',
                     options: {
-                        redirectTo: window.location.origin + window.location.pathname
+                        redirectTo: redirectUrl
                     }
                 });
                 if (error) throw error;
@@ -629,6 +706,39 @@
             }
         }
 
+        const DEFAULT_STARTER_TUITIONS = [
+            {
+                id: 'starter-1',
+                tuition_number: '1001',
+                status: 'open',
+                subjects: 'Mathematics, Physics',
+                class_name: 'O Level / Grade 10',
+                area_city: 'DHA Phase 5, Lahore',
+                details: 'Looking for an experienced tutor for O Level Math (Syllabus D) & Physics. 4 days a week, 1.5 hours per day. Competitive stipend.',
+                created_at: new Date().toISOString()
+            },
+            {
+                id: 'starter-2',
+                tuition_number: '1002',
+                status: 'open',
+                subjects: 'Chemistry, Biology',
+                class_name: 'A Level / Year 12',
+                area_city: 'F-7, Islamabad',
+                details: 'Cambridge A Level Chemistry & Biology female tutor preferred. 3 days a week. Good compensation package.',
+                created_at: new Date().toISOString()
+            },
+            {
+                id: 'starter-3',
+                tuition_number: '1003',
+                status: 'open',
+                subjects: 'English, Computer Science',
+                class_name: 'IGCSE / Grade 9',
+                area_city: 'Clifton, Karachi',
+                details: 'Cambridge IGCSE curriculum. Focus on Python programming basics and English literature. Flexible timings in the evening.',
+                created_at: new Date().toISOString()
+            }
+        ];
+
         /**
          * Load Tuitions from Supabase
          */
@@ -641,15 +751,22 @@
                     .order('created_at', { ascending: false });
 
                 if (error) throw error;
-                tuitionsData = data || [];
-
+                if (data && data.length > 0) {
+                    tuitionsData = data;
+                } else if (tuitionsData.length === 0) {
+                    tuitionsData = DEFAULT_STARTER_TUITIONS;
+                }
+            } catch (err) {
+                console.warn('Could not load tuitions from database, using starter data:', err);
+                if (tuitionsData.length === 0) {
+                    tuitionsData = DEFAULT_STARTER_TUITIONS;
+                }
+            } finally {
                 if (currentView === 'admin') {
                     renderAdminTuitions();
                 } else {
                     renderTeacherTuitions();
                 }
-            } catch (err) {
-                console.error('Error loading tuitions:', err);
             }
         }
 

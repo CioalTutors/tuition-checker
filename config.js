@@ -13,7 +13,10 @@ const APP_CONFIG = {
   SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpqaHV5Y3VnbXdzcWNtcHpzaWhpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIzNDgyMDQsImV4cCI6MjEwNzkyNDIwNH0.kjl64KanuCdDws43SJxmZUjQ0QiafGlNtxIQ3VyICRw",
 
   // Target WhatsApp phone number for applications (country code without '+')
-  WHATSAPP_NUMBER: "923459069492"
+  WHATSAPP_NUMBER: "923459069492",
+
+  // Admin emails who have full access to the Admin Dashboard
+  ADMIN_EMAILS: ["cambridgeigcseoaleveltutors@gmail.com"]
 };
 
 // Check if credentials have been saved via browser settings modal
