@@ -3,59 +3,65 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CioalTutors Details List</title>
-    <!-- Load Tailwind CSS -->
+    <title>CioalTutors - Tuition Portal</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Tailwind Configuration for Custom Colors -->
+    <!-- Supabase JS Client v2 -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Application Config -->
+    <script src="config.js"></script>
+
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        // Custom colors derived from #eaff7f for the details section
-                        'details-main': '#eaff7f',
-                        'details-hover': '#d3e372', // Slightly darker for hover effect
-                        'details-bg': '#f7ffdf',    // Very light background for the collapsed section
-                        'details-border': '#eaff7f',
+                        brand: {
+                            50: '#f0fbf0',
+                            100: '#def6de',
+                            500: '#52c41a',
+                            600: '#44a516',
+                            700: '#348311',
+                            dark: '#22590a'
+                        },
+                        details: {
+                            main: '#eaff7f',
+                            hover: '#d3e372',
+                            bg: '#f7ffdf',
+                            border: '#eaff7f',
+                        }
                     }
                 }
             }
         }
     </script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        /* Custom Theme Colors */
-        :root {
-            --color-primary-green: #52c41a; 
-            --color-dark-green: #44a516;
-            --color-light-green: #e9f5e1;
-        }
 
-        /* Custom scrollbar styling */
-        .custom-scrollbar::-webkit-scrollbar {
-            width: 8px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background-color: var(--color-dark-green);
-            border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-            background: var(--color-light-green);
-        }
-        
+    <style>
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background-color: #f4f7f6;
         }
 
-        /* Loading spinner animation */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: #52c41a;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #e9f5e1;
+        }
+
         .spinner {
-            border: 4px solid #e5e7eb;
-            border-top: 4px solid var(--color-primary-green);
+            border: 3px solid #e5e7eb;
+            border-top: 3px solid #52c41a;
             border-radius: 50%;
-            width: 32px;
-            height: 32px;
-            animation: spin 1s linear infinite;
+            width: 24px;
+            height: 24px;
+            animation: spin 0.8s linear infinite;
         }
         @keyframes spin {
             0% { transform: rotate(0deg); }
@@ -63,308 +69,938 @@
         }
     </style>
 </head>
-<body class="min-h-screen flex flex-col items-center p-4">
+<body class="min-h-screen flex flex-col items-center p-3 sm:p-6 text-gray-800">
+
+    <!-- Supabase Setup Warning Banner (shown if keys not configured) -->
+    <div id="setupBanner" class="hidden w-full max-w-2xl mb-4 bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg shadow-sm">
+        <div class="flex items-start justify-between">
+            <div class="flex items-start">
+                <svg class="w-6 h-6 text-amber-500 mr-3 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+                <div>
+                    <h3 class="text-sm font-bold text-amber-800">Supabase Connection Required</h3>
+                    <p class="text-xs text-amber-700 mt-1">Please enter your Supabase Project URL and Anon Key to activate Gmail Login and Database features.</p>
+                </div>
+            </div>
+            <button onclick="openConfigModal()" class="ml-4 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold px-3 py-1.5 rounded shadow">
+                Configure Now
+            </button>
+        </div>
+    </div>
 
     <!-- Main Container -->
-    <div class="w-full max-w-md bg-white rounded-xl shadow-2xl overflow-hidden mt-8 md:mt-16">
+    <div class="w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100 flex flex-col">
 
-        <!-- Header/Logo Section -->
-        <header class="p-0 flex flex-col items-center justify-center rounded-t-xl">
-            <img id="logo" 
-                 src="https://i.ibb.co/YFKnnBj8/Cioal-Tutors-Banner.png" 
-                 alt="CioalTutors Logo" 
-                 class="w-full h-auto"
-                 onerror="this.outerHTML='<div id=\'logo-placeholder\' class=\'w-full py-4 bg-[var(--color-dark-green)] shadow-lg\'><span class=\'text-white text-xl font-bold tracking-wider\'>CioalTutors</span></div>';"
-            >
-            <!-- Updated Heading and Sub-text -->
-            <div class="pt-4 pb-6 px-6 text-center">
-                <h1 class="text-gray-800 text-2xl font-extrabold mb-1">Available Open Tuitions</h1>
-                <p class="text-gray-600 text-xs font-medium">The top ones are most recent, down ones are older</p>
+        <!-- App Header & Banner -->
+        <header class="relative bg-white border-b border-gray-100">
+            <div class="w-full bg-emerald-950 flex justify-center">
+                <img id="logo" 
+                     src="https://i.ibb.co/YFKnnBj8/Cioal-Tutors-Banner.png" 
+                     alt="CioalTutors Banner" 
+                     class="w-full max-h-48 object-cover"
+                     onerror="this.outerHTML='<div class=\'w-full py-6 bg-brand-600 text-center text-white text-2xl font-black tracking-wide\'>CioalTutors.com</div>';">
+            </div>
+
+            <!-- User Auth Bar (When Logged In) -->
+            <div id="userBar" class="hidden px-4 py-3 bg-gray-50 border-b border-gray-200 flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center space-x-3">
+                    <img id="userAvatar" class="w-9 h-9 rounded-full border-2 border-brand-500 object-cover" src="" alt="Avatar" />
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <span id="userName" class="text-xs sm:text-sm font-bold text-gray-900">User</span>
+                            <span id="roleBadge" class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">Teacher</span>
+                        </div>
+                        <p id="userEmail" class="text-[11px] text-gray-500"></p>
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-2">
+                    <!-- Admin View Switcher (Only visible to Admins) -->
+                    <div id="adminNav" class="hidden flex items-center bg-gray-200 p-0.5 rounded-lg text-xs font-semibold">
+                        <button id="navTeacherBtn" onclick="switchView('teacher')" class="px-2.5 py-1 rounded-md transition bg-white shadow-sm text-gray-900">
+                            Teacher View
+                        </button>
+                        <button id="navAdminBtn" onclick="switchView('admin')" class="px-2.5 py-1 rounded-md transition text-gray-600 hover:text-gray-900">
+                            Admin Panel
+                        </button>
+                    </div>
+
+                    <!-- Sign Out Button -->
+                    <button onclick="handleSignOut()" class="text-xs text-red-600 hover:text-red-700 hover:bg-red-50 font-medium px-2.5 py-1.5 rounded-md transition border border-red-200">
+                        Sign Out
+                    </button>
+                </div>
             </div>
         </header>
 
-        <!-- Main Content Area -->
-        <main class="p-6">
-            <!-- Loading State -->
-            <div id="loadingState" class="flex flex-col items-center justify-center p-8 text-gray-700">
-                <div class="spinner"></div>
-                <p class="mt-4 font-semibold text-lg">Loading active tuition details...</p>
+        <!-- Main Body -->
+        <main class="p-4 sm:p-6 flex-grow">
+
+            <!-- 1. LOADING SCREEN -->
+            <div id="loadingScreen" class="py-16 flex flex-col items-center justify-center text-center">
+                <div class="spinner mb-4"></div>
+                <p class="text-sm font-semibold text-gray-600">Connecting to CioalTutors Portal...</p>
             </div>
 
-            <!-- Application Content (Initially Hidden) -->
-            <div id="appContent" class="hidden">
+            <!-- 2. SIGN IN REQUIRED VIEW (For Teachers/Visitors not logged in) -->
+            <div id="authScreen" class="hidden py-8 px-4 flex flex-col items-center text-center">
+                <div class="w-16 h-16 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center mb-4 shadow-sm border border-brand-100">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                    </svg>
+                </div>
                 
-                <!-- Open Tuitions Display Section -->
-                <div class="pt-4">
-                    <div id="openTuitionsSection" 
-                         class="max-h-96 overflow-y-auto custom-scrollbar p-2 bg-gray-50 rounded-lg border border-gray-100">
-                        <p class="text-sm text-gray-500 text-center">Fetching list...</p>
+                <h2 class="text-2xl font-black text-gray-900 tracking-tight">Teacher Portal Sign In</h2>
+                <p class="text-sm text-gray-600 max-w-md mt-2">
+                    Sign in with your Google account to view live tuition postings, location details, and apply directly to parents and students.
+                </p>
+
+                <!-- Feature Highlights -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full my-6 text-left">
+                    <div class="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                        <span class="text-brand-600 font-bold text-sm">📚 Verified Tuitions</span>
+                        <p class="text-[11px] text-gray-500 mt-1">Live Cambridge O/A Level, IGCSE & school queries.</p>
                     </div>
+                    <div class="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                        <span class="text-brand-600 font-bold text-sm">⚡ 1-Click WhatsApp Apply</span>
+                        <p class="text-[11px] text-gray-500 mt-1">Directly chat with our coordinators to secure classes.</p>
+                    </div>
+                    <div class="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                        <span class="text-brand-600 font-bold text-sm">🔒 Secure Access</span>
+                        <p class="text-[11px] text-gray-500 mt-1">Protected tutor directory and dedicated admin dashboard.</p>
+                    </div>
+                </div>
+
+                <!-- Google Sign In Button -->
+                <button onclick="handleGoogleSignIn()" class="w-full max-w-sm flex items-center justify-center space-x-3 bg-white border border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-gray-700 font-semibold py-3 px-6 rounded-xl shadow-sm transition transform hover:-translate-y-0.5">
+                    <!-- Google SVG Logo -->
+                    <svg class="w-5 h-5" viewBox="0 0 24 24">
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                    </svg>
+                    <span>Continue with Google (Gmail)</span>
+                </button>
+                <p class="text-[11px] text-gray-400 mt-3">Free for tutors. Your email is only used for authentication.</p>
+            </div>
+
+            <!-- 3. TEACHER VIEW: BROWSE OPEN TUITIONS -->
+            <div id="teacherView" class="hidden space-y-4">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-gray-100 gap-2">
+                    <div>
+                        <h2 class="text-xl font-extrabold text-gray-900">Available Tuitions</h2>
+                        <p class="text-xs text-gray-500">Live feed updated in real time</p>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span id="tuitionCountBadge" class="bg-brand-50 text-brand-700 text-xs font-bold px-3 py-1 rounded-full border border-brand-200">
+                            0 Open
+                        </span>
+                        <button onclick="loadTuitions()" title="Refresh list" class="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Search Input -->
+                <div class="relative">
+                    <svg class="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                    <input type="text" 
+                           id="teacherSearchInput" 
+                           oninput="filterTeacherTuitions()" 
+                           placeholder="Search by subject, class, area, or tuition #..." 
+                           class="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white transition">
+                </div>
+
+                <!-- Tuitions List Container -->
+                <div id="teacherTuitionsList" class="space-y-4 max-h-[600px] overflow-y-auto custom-scrollbar pr-1">
+                    <!-- Populated dynamically -->
                 </div>
             </div>
 
-            <!-- Error State (Initially Hidden) -->
-            <div id="errorState" class="hidden text-center p-8">
-                <p class="text-red-600 font-bold text-xl">Data Load Error</p>
-                <p class="text-sm text-gray-600 mt-3">We couldn't fetch the data. Please check the provided URL and sheet structure.</p>
+            <!-- 4. ADMIN VIEW: MANAGE TUITIONS -->
+            <div id="adminView" class="hidden space-y-5">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-gray-100 gap-3">
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <h2 class="text-xl font-black text-gray-900">Admin Dashboard</h2>
+                            <span class="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Admin Only</span>
+                        </div>
+                        <p class="text-xs text-gray-500">Add, edit, open, or close tuition postings</p>
+                    </div>
+                    <button onclick="openAddTuitionModal()" class="flex items-center justify-center space-x-1.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs sm:text-sm py-2 px-4 rounded-xl shadow-md transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        <span>Add New Tuition</span>
+                    </button>
+                </div>
+
+                <!-- Stats Overview -->
+                <div class="grid grid-cols-3 gap-3">
+                    <div class="bg-gray-50 p-3 rounded-xl border border-gray-200 text-center">
+                        <span class="text-xs text-gray-500 font-medium">Total</span>
+                        <p id="statTotal" class="text-lg font-black text-gray-900 mt-0.5">0</p>
+                    </div>
+                    <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-200 text-center">
+                        <span class="text-xs text-emerald-700 font-medium">Open</span>
+                        <p id="statOpen" class="text-lg font-black text-emerald-800 mt-0.5">0</p>
+                    </div>
+                    <div class="bg-rose-50 p-3 rounded-xl border border-rose-200 text-center">
+                        <span class="text-xs text-rose-700 font-medium">Closed</span>
+                        <p id="statClosed" class="text-lg font-black text-rose-800 mt-0.5">0</p>
+                    </div>
+                </div>
+
+                <!-- Admin Filter Bar -->
+                <div class="flex flex-col sm:flex-row gap-2">
+                    <div class="relative flex-grow">
+                        <svg class="w-4 h-4 text-gray-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                        </svg>
+                        <input type="text" 
+                               id="adminSearchInput" 
+                               oninput="filterAdminTuitions()" 
+                               placeholder="Search tuitions..." 
+                               class="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                    </div>
+                    <select id="adminStatusFilter" onchange="filterAdminTuitions()" class="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-xs sm:text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                        <option value="all">All Statuses</option>
+                        <option value="open">Open Only</option>
+                        <option value="closed">Closed Only</option>
+                    </select>
+                </div>
+
+                <!-- Admin Tuitions List -->
+                <div id="adminTuitionsList" class="space-y-3 max-h-[550px] overflow-y-auto custom-scrollbar pr-1">
+                    <!-- Populated dynamically -->
+                </div>
             </div>
+
         </main>
+
+        <!-- Footer -->
+        <footer class="p-3 bg-gray-50 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-400 gap-2">
+            <span>CioalTutors.com &copy; 2026 &bull; Home & Online Tutoring Portal</span>
+            <div class="space-x-3">
+                <a href="privacy.html" class="hover:text-gray-600 underline">Privacy Policy</a>
+                <a href="terms.html" class="hover:text-gray-600 underline">Terms of Service</a>
+            </div>
+        </footer>
     </div>
 
-    <script>
-        // Constants
-        const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTfIb0otzFTzedtVI6ad2Dsqp5PMMcU74q6PMlCPoyxengcTujUfdGj1emWbBRh-lA3Awouxcbgo86o/pub?gid=0&single=true&output=csv';
-        const TUITION_NUMBER_INDEX = 0; // Tuition Number (first column)
-        const STATUS_INDEX = 1;         // Status (second column)
-        const SUBJECTS_INDEX = 2;       // Subjects
-        const CLASS_INDEX = 3;          // Class
-        const WHATSAPP_NUMBER = '923459069492'; // Target WhatsApp number (without +)
+    <!-- ADD / EDIT TUITION MODAL (For Admins) -->
+    <div id="tuitionModal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl relative border border-gray-100 max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between pb-3 border-b border-gray-100">
+                <h3 id="modalTitle" class="text-lg font-bold text-gray-900">Add New Tuition</h3>
+                <button onclick="closeTuitionModal()" class="text-gray-400 hover:text-gray-600 p-1">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
 
-        // Global data store
-        let openTuitionsData = []; 
+            <form id="tuitionForm" onsubmit="handleSaveTuition(event)" class="space-y-4 mt-4">
+                <input type="hidden" id="formTuitionId" value="">
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Tuition # <span class="text-red-500">*</span></label>
+                        <input type="text" id="formTuitionNumber" required placeholder="e.g. 1045" class="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Status <span class="text-red-500">*</span></label>
+                        <select id="formStatus" required class="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500">
+                            <option value="open">Open (Active)</option>
+                            <option value="closed">Closed (Filled)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Subjects <span class="text-red-500">*</span></label>
+                    <input type="text" id="formSubjects" required placeholder="e.g. Mathematics, Physics" class="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Class / Grade <span class="text-red-500">*</span></label>
+                        <input type="text" id="formClass" required placeholder="e.g. O Level / Year 10" class="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Area / City <span class="text-red-500">*</span></label>
+                        <input type="text" id="formAreaCity" required placeholder="e.g. DHA Phase 5, Lahore" class="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Full Details / Requirements</label>
+                    <textarea id="formDetails" rows="4" placeholder="Schedule, days per week, timing, stipend, tutor gender preference, requirements..." class="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"></textarea>
+                </div>
+
+                <div class="flex items-center justify-end space-x-2 pt-3 border-t border-gray-100">
+                    <button type="button" onclick="closeTuitionModal()" class="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-lg transition">
+                        Cancel
+                    </button>
+                    <button type="submit" id="formSubmitBtn" class="px-5 py-2 text-xs font-bold text-white bg-brand-600 hover:bg-brand-700 rounded-lg shadow transition">
+                        Save Tuition
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- SUPABASE CONFIG MODAL (Optional Helper) -->
+    <div id="configModal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative border border-gray-100">
+            <h3 class="text-lg font-bold text-gray-900 mb-2">Connect Supabase</h3>
+            <p class="text-xs text-gray-500 mb-4">Paste your project credentials from your Supabase Dashboard (Settings &rarr; API).</p>
+            
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Project URL</label>
+                    <input type="text" id="configUrlInput" placeholder="https://xyzcompany.supabase.co" class="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Anon / Public Key</label>
+                    <textarea id="configKeyInput" rows="3" placeholder="eyJhbGciOi..." class="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"></textarea>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-end space-x-2 mt-5">
+                <button onclick="closeConfigModal()" class="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+                <button onclick="saveConfigFromModal()" class="px-5 py-2 text-xs font-bold text-white bg-brand-600 hover:bg-brand-700 rounded-lg shadow">Save & Reload</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- APPLICATION LOGIC SCRIPT -->
+    <script>
+        // State
+        let supabaseClient = null;
+        let currentUser = null;
+        let userProfile = null;
+        let tuitionsData = [];
+        let currentView = 'teacher'; // 'teacher' or 'admin'
+        let realtimeChannel = null;
 
         // DOM Elements
-        const openTuitionsSection = document.getElementById('openTuitionsSection');
-        const loadingState = document.getElementById('loadingState');
-        const appContent = document.getElementById('appContent');
-        const errorState = document.getElementById('errorState');
+        const setupBanner = document.getElementById('setupBanner');
+        const userBar = document.getElementById('userBar');
+        const userName = document.getElementById('userName');
+        const userEmail = document.getElementById('userEmail');
+        const userAvatar = document.getElementById('userAvatar');
+        const roleBadge = document.getElementById('roleBadge');
+        const adminNav = document.getElementById('adminNav');
+        const navTeacherBtn = document.getElementById('navTeacherBtn');
+        const navAdminBtn = document.getElementById('navAdminBtn');
 
-        // Helper function to clean a CSV cell value (removes starting/ending quotes and unescapes internal quotes)
-        const cleanValue = (val) => val ? val.trim().replace(/^"|"$/g, '').replace(/""/g, '"') : '';
+        const loadingScreen = document.getElementById('loadingScreen');
+        const authScreen = document.getElementById('authScreen');
+        const teacherView = document.getElementById('teacherView');
+        const adminView = document.getElementById('adminView');
+
+        const teacherTuitionsList = document.getElementById('teacherTuitionsList');
+        const tuitionCountBadge = document.getElementById('tuitionCountBadge');
+        const adminTuitionsList = document.getElementById('adminTuitionsList');
+        const statTotal = document.getElementById('statTotal');
+        const statOpen = document.getElementById('statOpen');
+        const statClosed = document.getElementById('statClosed');
+
+        // Modals
+        const tuitionModal = document.getElementById('tuitionModal');
+        const tuitionForm = document.getElementById('tuitionForm');
+        const modalTitle = document.getElementById('modalTitle');
+        const configModal = document.getElementById('configModal');
 
         /**
-         * Initiates a WhatsApp chat for the selected tuition number.
-         * @param {string} tuitionNumber - The number of the tuition the user wants to apply for.
+         * Initialize App on Load
          */
-        function applyForTuition(tuitionNumber) {
-            const message = `I want to apply for the Tuition ${tuitionNumber}`;
-            const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
-            window.open(whatsappUrl, '_blank');
-        }
-
-        /**
-         * Toggles the visibility of the detailed information for a specific tuition card.
-         * @param {string} tuitionNumber - The number used to uniquely identify the details element.
-         */
-        function toggleDetails(tuitionNumber) {
-            const detailsElement = document.getElementById(`details-${tuitionNumber}`);
-            const buttonElement = document.getElementById(`btn-details-${tuitionNumber}`);
-
-            if (detailsElement.classList.contains('hidden')) {
-                // Show details
-                detailsElement.classList.remove('hidden');
-                buttonElement.textContent = 'Hide Details';
+        window.addEventListener('DOMContentLoaded', async () => {
+            checkConfigStatus();
+            initSupabase();
+            if (supabaseClient) {
+                await checkAuthState();
             } else {
-                // Hide details
-                detailsElement.classList.add('hidden');
-                buttonElement.textContent = 'View Details';
+                showLoading(false);
+                showAuthScreen(true);
+            }
+        });
+
+        function checkConfigStatus() {
+            const isDefaultUrl = !APP_CONFIG.SUPABASE_URL || APP_CONFIG.SUPABASE_URL.includes('YOUR_PROJECT_ID');
+            const isDefaultKey = !APP_CONFIG.SUPABASE_ANON_KEY || APP_CONFIG.SUPABASE_ANON_KEY.includes('YOUR_SUPABASE_ANON_KEY');
+            if (isDefaultUrl || isDefaultKey) {
+                setupBanner.classList.remove('hidden');
+            } else {
+                setupBanner.classList.add('hidden');
             }
         }
 
+        function initSupabase() {
+            try {
+                if (window.supabase && APP_CONFIG.SUPABASE_URL && !APP_CONFIG.SUPABASE_URL.includes('YOUR_PROJECT_ID')) {
+                    supabaseClient = window.supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_ANON_KEY);
+                }
+            } catch (err) {
+                console.error("Supabase init error:", err);
+            }
+        }
 
         /**
-         * Extracts data from the CSV using a robust, hybrid splitting strategy.
-         * This strategy strictly isolates the first four columns and then uses string manipulation 
-         * and quote detection to accurately split Area/City and Details.
-         * @param {string} csvText - The raw CSV string.
+         * Check Auth State & Setup Listeners
          */
-        function extractDataAndBuildMap(csvText) {
-            const allLines = csvText.trim().split('\n').filter(line => line.length > 0);
-            if (allLines.length <= 1) return;
+        async function checkAuthState() {
+            showLoading(true);
 
-            openTuitionsData = []; // Reset open list
-
-            for (let i = 1; i < allLines.length; i++) {
-                const rawLine = allLines[i];
-                
-                // 1. Find the 4th comma to separate the first 4 fixed columns
-                let commaCount = 0;
-                let splitPoint4 = -1;
-                for (let j = 0; j < rawLine.length; j++) {
-                    if (rawLine[j] === ',') {
-                        commaCount++;
-                        if (commaCount === 4) {
-                            splitPoint4 = j;
-                            break;
-                        }
-                    }
-                }
-                
-                if (splitPoint4 === -1) { continue; }
-
-                // 2. Extract first 4 values
-                // The substring ends *before* the 4th comma.
-                const initialValues = rawLine.substring(0, splitPoint4).split(',');
-                
-                let tuitionNumber = cleanValue(initialValues[TUITION_NUMBER_INDEX]);
-                let status = cleanValue(initialValues[STATUS_INDEX]);
-                
-                if (tuitionNumber.length === 0 || !/^\d+$/.test(tuitionNumber) || status.length === 0) {
-                     continue; 
-                }
-
-                let subjects = cleanValue(initialValues[SUBJECTS_INDEX]);
-                let className = cleanValue(initialValues[CLASS_INDEX]);
-                
-                // 3. The remaining string contains Area/City and Details
-                // The substring starts *after* the 4th comma (the one that follows Class)
-                const remainingString = rawLine.substring(splitPoint4 + 1); 
-                
-                let areaCity = 'N/A';
-                let details = 'No additional details provided.';
-
-                // Find the split point between Area/City (Col 4) and Details (Col 5).
-                // We prioritize finding the delimiter `","` which reliably separates quoted fields.
-                const delimiter = '","';
-                const quoteSplitIndex = remainingString.indexOf(delimiter); 
-
-                if (quoteSplitIndex !== -1) {
-                    // Scenario A: Found the reliable `","` delimiter.
-                    
-                    // Area/City: Everything up to the comma of the delimiter. Includes the closing quote if Col 4 was quoted.
-                    const rawAreaCity = remainingString.substring(0, quoteSplitIndex);
-                    areaCity = cleanValue(rawAreaCity);
-                    
-                    // Details: Everything after the delimiter (it starts with the opening quote of Col 5).
-                    const rawDetails = remainingString.substring(quoteSplitIndex + delimiter.length);
-                    details = cleanValue(rawDetails);
-
+            // Listen for auth state changes (sign in, sign out, token refresh)
+            supabaseClient.auth.onAuthStateChange(async (event, session) => {
+                if (session && session.user) {
+                    currentUser = session.user;
+                    await fetchProfile();
+                    await loadTuitions();
+                    setupRealtime();
+                    updateUIForUser();
                 } else {
-                    // Scenario B: No clean `","` delimiter. Split by the first comma found.
-                    
-                    const firstCommaIndex = remainingString.indexOf(',');
+                    currentUser = null;
+                    userProfile = null;
+                    tuitionsData = [];
+                    updateUIForGuest();
+                }
+                showLoading(false);
+            });
 
-                    if (firstCommaIndex !== -1) {
-                        // Split by the first comma found (Area/City, Details)
-                        areaCity = cleanValue(remainingString.substring(0, firstCommaIndex));
-                        details = cleanValue(remainingString.substring(firstCommaIndex + 1));
-                    } else if (remainingString.trim().length > 0) {
-                        // Only Area/City remaining, Details is empty.
-                        areaCity = cleanValue(remainingString);
-                        details = 'No additional details provided.';
-                    } else {
-                        // Both Area/City and Details are empty.
-                        areaCity = 'N/A';
-                        details = 'No additional details provided.';
-                    }
-                }
-
-                // Final cleanup: ensure Area/City is not empty
-                if (areaCity.trim() === '') {
-                    areaCity = 'N/A';
-                }
-                
-                // --- Data Storage ---
-                const statusUpper = status.toUpperCase();
-                if (statusUpper.includes('ACTIVE') || statusUpper.includes('OPEN')) {
-                    openTuitionsData.push({
-                        tuitionNumber: tuitionNumber,
-                        subjects: subjects,
-                        className: className,
-                        areaCity: areaCity,
-                        details: details,
-                    });
-                }
+            // Initial session check
+            const { data: { session }, error } = await supabaseClient.auth.getSession();
+            if (!session) {
+                showLoading(false);
+                updateUIForGuest();
             }
         }
 
         /**
-         * Populates the list of open tuitions using data from all new columns.
+         * Fetch or create user profile from 'profiles' table
          */
-        function populateOpenTuitions() {
-            if (openTuitionsData.length === 0) {
-                openTuitionsSection.innerHTML = '<p class="text-sm text-gray-500 text-center py-2">No tuitions are currently marked as Open/Active.</p>';
+        async function fetchProfile() {
+            if (!currentUser) return;
+            try {
+                const { data, error } = await supabaseClient
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', currentUser.id)
+                    .single();
+
+                if (data) {
+                    userProfile = data;
+                } else {
+                    // Fallback default role
+                    userProfile = {
+                        role: 'teacher',
+                        full_name: currentUser.user_metadata?.full_name || currentUser.email.split('@')[0],
+                        email: currentUser.email,
+                        avatar_url: currentUser.user_metadata?.avatar_url || ''
+                    };
+                }
+            } catch (e) {
+                console.warn('Profile fetch error, using defaults:', e);
+                userProfile = {
+                    role: 'teacher',
+                    full_name: currentUser.user_metadata?.full_name || currentUser.email.split('@')[0],
+                    email: currentUser.email,
+                    avatar_url: currentUser.user_metadata?.avatar_url || ''
+                };
+            }
+        }
+
+        /**
+         * UI Updates
+         */
+        function updateUIForGuest() {
+            userBar.classList.add('hidden');
+            teacherView.classList.add('hidden');
+            adminView.classList.add('hidden');
+            authScreen.classList.remove('hidden');
+        }
+
+        function updateUIForUser() {
+            authScreen.classList.add('hidden');
+            userBar.classList.remove('hidden');
+
+            const name = userProfile?.full_name || currentUser.user_metadata?.full_name || currentUser.email.split('@')[0];
+            userName.textContent = name;
+            userEmail.textContent = currentUser.email;
+
+            // Avatar
+            const avatar = userProfile?.avatar_url || currentUser.user_metadata?.avatar_url;
+            if (avatar) {
+                userAvatar.src = avatar;
+            } else {
+                userAvatar.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=52c41a&color=fff`;
+            }
+
+            // Role Badge
+            const isAdmin = userProfile?.role === 'admin';
+            if (isAdmin) {
+                roleBadge.textContent = 'Admin';
+                roleBadge.className = 'text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300';
+                adminNav.classList.remove('hidden');
+            } else {
+                roleBadge.textContent = 'Teacher';
+                roleBadge.className = 'text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300';
+                adminNav.classList.add('hidden');
+                currentView = 'teacher';
+            }
+
+            switchView(currentView);
+        }
+
+        function switchView(view) {
+            currentView = view;
+            if (view === 'admin' && userProfile?.role === 'admin') {
+                teacherView.classList.add('hidden');
+                adminView.classList.remove('hidden');
+                navAdminBtn.className = 'px-2.5 py-1 rounded-md transition bg-white shadow-sm text-gray-900';
+                navTeacherBtn.className = 'px-2.5 py-1 rounded-md transition text-gray-600 hover:text-gray-900';
+                renderAdminTuitions();
+            } else {
+                adminView.classList.add('hidden');
+                teacherView.classList.remove('hidden');
+                navTeacherBtn.className = 'px-2.5 py-1 rounded-md transition bg-white shadow-sm text-gray-900';
+                navAdminBtn.className = 'px-2.5 py-1 rounded-md transition text-gray-600 hover:text-gray-900';
+                renderTeacherTuitions();
+            }
+        }
+
+        function showLoading(show) {
+            if (show) {
+                loadingScreen.classList.remove('hidden');
+            } else {
+                loadingScreen.classList.add('hidden');
+            }
+        }
+
+        function showAuthScreen(show) {
+            if (show) {
+                authScreen.classList.remove('hidden');
+            } else {
+                authScreen.classList.add('hidden');
+            }
+        }
+
+        /**
+         * Auth Handlers
+         */
+        async function handleGoogleSignIn() {
+            if (!supabaseClient) {
+                openConfigModal();
                 return;
             }
 
-            // 1. Reverse the array to show the newest (last in CSV) at the top
-            const reversedData = [...openTuitionsData].reverse();
-
-            // 2. Generate HTML with full cell value
-            const listHtml = reversedData.map(item => {
-                
-                // Helper to format the detail text, replacing newlines/commas with <br>
-                const formatDetail = (text) => text.replace(/(\r?\n)/g, '<br>'); // Only replace newlines for formatting
-
-                return `
-                <div class="p-4 bg-white rounded-lg shadow-md mb-4 border-l-4 border-green-500 text-left">
-                    <p class="text-lg font-bold text-gray-900 mb-3">Tuition #${item.tuitionNumber}</p>
-                    
-                    <div class="space-y-1 text-sm text-gray-700 mb-4">
-                        <p><span class="font-semibold text-gray-800">Subjects:</span> ${item.subjects || 'N/A'}</p>
-                        <p><span class="font-semibold text-gray-800">Class:</span> ${item.className || 'N/A'}</p>
-                        <p><span class="font-semibold text-gray-800">Area/City:</span> ${item.areaCity || 'N/A'}</p>
-                    </div>
-
-                    <!-- Details and Apply Buttons (Left and Right Aligned) -->
-                    <div class="flex justify-between items-center space-x-2">
-                        <!-- Details Button (Left Aligned) -->
-                        <button 
-                            id="btn-details-${item.tuitionNumber}"
-                            onclick="toggleDetails('${item.tuitionNumber}')" 
-                            class="flex-grow mr-2 bg-details-main hover:bg-details-hover text-gray-900 font-bold py-2 px-4 rounded-lg shadow-md transition duration-150 ease-in-out transform hover:scale-[1.01] focus:outline-none focus:ring-2 focus:ring-details-main focus:ring-opacity-50 text-sm">
-                            View Details
-                        </button>
-                        
-                        <!-- Apply Button (Right Aligned) -->
-                        <button 
-                            onclick="applyForTuition('${item.tuitionNumber}')" 
-                            class="flex-grow ml-2 bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-150 ease-in-out transform hover:scale-[1.01] focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 text-sm">
-                            Apply Now
-                        </button>
-                    </div>
-
-                    <!-- Collapsible Details Section (Initially Hidden) -->
-                    <div id="details-${item.tuitionNumber}" class="hidden mt-4 p-3 bg-details-bg rounded-lg border border-details-border transition-all duration-300 ease-in-out">
-                        <p class="font-semibold text-gray-800 mb-1">Full Details:</p>
-                        <p class="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">${formatDetail(item.details)}</p>
-                    </div>
-
-                </div>
-            `;
-            }).join('');
-
-            openTuitionsSection.innerHTML = listHtml;
-        }
-
-
-        /**
-         * Fetches CSV data from the URL and initializes the application.
-         */
-        async function initApp() {
-            loadingState.classList.remove('hidden');
-            appContent.classList.add('hidden');
-            errorState.classList.add('hidden');
-
             try {
-                // Add timestamp to prevent caching, ensuring we get the latest data
-                const urlToFetch = `${CSV_URL}&t=${new Date().getTime()}`;
-                const response = await fetch(urlToFetch);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                const csvText = await response.text();
-                
-                // Extract data and filter open tuitions
-                extractDataAndBuildMap(csvText);
-                
-                populateOpenTuitions(); // Populate the details column list
-                
-                // Switch to app content view
-                loadingState.classList.add('hidden');
-                appContent.classList.remove('hidden');
-                
-
-            } catch (error) {
-                console.error('Failed to load or process data:', error);
-                loadingState.classList.add('hidden');
-                errorState.classList.remove('hidden');
+                const { error } = await supabaseClient.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: {
+                        redirectTo: window.location.origin + window.location.pathname
+                    }
+                });
+                if (error) throw error;
+            } catch (err) {
+                alert('Sign in error: ' + err.message);
+                console.error(err);
             }
         }
-        
-        // Start the application when the window loads
-        window.onload = initApp;
 
+        async function handleSignOut() {
+            if (!supabaseClient) return;
+            try {
+                if (realtimeChannel) {
+                    supabaseClient.removeChannel(realtimeChannel);
+                    realtimeChannel = null;
+                }
+                await supabaseClient.auth.signOut();
+            } catch (err) {
+                console.error('Sign out error:', err);
+            }
+        }
+
+        /**
+         * Load Tuitions from Supabase
+         */
+        async function loadTuitions() {
+            if (!supabaseClient || !currentUser) return;
+            try {
+                const { data, error } = await supabaseClient
+                    .from('tuitions')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+
+                if (error) throw error;
+                tuitionsData = data || [];
+
+                if (currentView === 'admin') {
+                    renderAdminTuitions();
+                } else {
+                    renderTeacherTuitions();
+                }
+            } catch (err) {
+                console.error('Error loading tuitions:', err);
+            }
+        }
+
+        /**
+         * Setup Realtime Updates
+         */
+        function setupRealtime() {
+            if (!supabaseClient || realtimeChannel) return;
+            realtimeChannel = supabaseClient
+                .channel('public:tuitions')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'tuitions' }, payload => {
+                    // Refresh data on any database change
+                    loadTuitions();
+                })
+                .subscribe();
+        }
+
+        /**
+         * Teacher View Rendering
+         */
+        function renderTeacherTuitions(filteredList = null) {
+            const list = filteredList || tuitionsData.filter(t => t.status === 'open');
+            tuitionCountBadge.textContent = `${list.length} Open`;
+
+            if (list.length === 0) {
+                teacherTuitionsList.innerHTML = `
+                    <div class="p-8 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                        <p class="text-sm font-semibold text-gray-500">No open tuitions found at the moment.</p>
+                        <p class="text-xs text-gray-400 mt-1">Check back soon or adjust your search filter.</p>
+                    </div>`;
+                return;
+            }
+
+            teacherTuitionsList.innerHTML = list.map(item => `
+                <div class="p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border-l-4 border-brand-500 border border-gray-100 text-left">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-base font-extrabold text-gray-900">Tuition #${escapeHtml(item.tuition_number)}</span>
+                        <span class="bg-emerald-100 text-emerald-800 text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                            Active
+                        </span>
+                    </div>
+
+                    <div class="space-y-1.5 text-xs text-gray-700 mb-4">
+                        <p class="flex items-start">
+                            <span class="font-bold text-gray-900 w-20 flex-shrink-0">Subjects:</span>
+                            <span class="text-gray-800">${escapeHtml(item.subjects || 'N/A')}</span>
+                        </p>
+                        <p class="flex items-start">
+                            <span class="font-bold text-gray-900 w-20 flex-shrink-0">Class:</span>
+                            <span class="text-gray-800">${escapeHtml(item.class_name || 'N/A')}</span>
+                        </p>
+                        <p class="flex items-start">
+                            <span class="font-bold text-gray-900 w-20 flex-shrink-0">Area/City:</span>
+                            <span class="text-gray-800">${escapeHtml(item.area_city || 'N/A')}</span>
+                        </p>
+                    </div>
+
+                    <!-- Details and Apply Buttons -->
+                    <div class="flex items-center space-x-2">
+                        <button onclick="toggleTeacherDetails('${item.id}')" 
+                                id="btn-details-${item.id}"
+                                class="flex-1 bg-details-main hover:bg-details-hover text-gray-900 font-bold py-2 px-3 rounded-lg text-xs transition">
+                            View Details
+                        </button>
+                        <button onclick="applyForTuition('${escapeHtml(item.tuition_number)}', '${escapeHtml(item.subjects)}', '${escapeHtml(item.class_name)}', '${escapeHtml(item.area_city)}')" 
+                                class="flex-1 bg-brand-500 hover:bg-brand-600 text-white font-bold py-2 px-3 rounded-lg text-xs transition flex items-center justify-center space-x-1 shadow-sm">
+                            <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/>
+                            </svg>
+                            <span>Apply Now</span>
+                        </button>
+                    </div>
+
+                    <!-- Collapsible Details -->
+                    <div id="details-${item.id}" class="hidden mt-3 p-3 bg-details-bg rounded-lg border border-details-border text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">
+                        <p class="font-bold text-gray-800 mb-1">Full Details & Requirements:</p>
+                        ${escapeHtml(item.details || 'No additional details provided.')}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function toggleTeacherDetails(id) {
+            const el = document.getElementById(`details-${id}`);
+            const btn = document.getElementById(`btn-details-${id}`);
+            if (el.classList.contains('hidden')) {
+                el.classList.remove('hidden');
+                btn.textContent = 'Hide Details';
+            } else {
+                el.classList.add('hidden');
+                btn.textContent = 'View Details';
+            }
+        }
+
+        function filterTeacherTuitions() {
+            const query = document.getElementById('teacherSearchInput').value.toLowerCase().trim();
+            const openOnly = tuitionsData.filter(t => t.status === 'open');
+            if (!query) {
+                renderTeacherTuitions(openOnly);
+                return;
+            }
+            const filtered = openOnly.filter(t => 
+                (t.tuition_number && t.tuition_number.toLowerCase().includes(query)) ||
+                (t.subjects && t.subjects.toLowerCase().includes(query)) ||
+                (t.class_name && t.class_name.toLowerCase().includes(query)) ||
+                (t.area_city && t.area_city.toLowerCase().includes(query)) ||
+                (t.details && t.details.toLowerCase().includes(query))
+            );
+            renderTeacherTuitions(filtered);
+        }
+
+        function applyForTuition(tuitionNum, subjects, className, areaCity) {
+            const tutorName = userProfile?.full_name || currentUser?.user_metadata?.full_name || 'Tutor';
+            const tutorEmail = currentUser?.email || '';
+            const msg = `Hello CioalTutors, I am ${tutorName} (${tutorEmail}). I want to apply for Tuition #${tuitionNum} (${subjects}, ${className}, ${areaCity}).`;
+            const waUrl = `https://wa.me/${APP_CONFIG.WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`;
+            window.open(waUrl, '_blank');
+        }
+
+        /**
+         * Admin View Rendering
+         */
+        function renderAdminTuitions(filteredList = null) {
+            const list = filteredList || tuitionsData;
+
+            // Update stats
+            statTotal.textContent = tuitionsData.length;
+            statOpen.textContent = tuitionsData.filter(t => t.status === 'open').length;
+            statClosed.textContent = tuitionsData.filter(t => t.status === 'closed').length;
+
+            if (list.length === 0) {
+                adminTuitionsList.innerHTML = `
+                    <div class="p-8 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                        <p class="text-sm font-semibold text-gray-500">No tuitions match your admin criteria.</p>
+                        <button onclick="openAddTuitionModal()" class="mt-2 text-xs font-bold text-brand-600 hover:underline">+ Add Tuition Now</button>
+                    </div>`;
+                return;
+            }
+
+            adminTuitionsList.innerHTML = list.map(item => `
+                <div class="p-3.5 bg-white rounded-xl border border-gray-200 shadow-sm hover:border-gray-300 transition">
+                    <div class="flex items-start justify-between gap-2 mb-2">
+                        <div>
+                            <span class="text-sm font-extrabold text-gray-900">Tuition #${escapeHtml(item.tuition_number)}</span>
+                            <span class="text-[11px] text-gray-400 ml-2">${new Date(item.created_at).toLocaleDateString()}</span>
+                        </div>
+                        <div class="flex items-center space-x-1.5">
+                            <button onclick="toggleTuitionStatus('${item.id}', '${item.status}')" 
+                                    title="Click to toggle Open/Closed status"
+                                    class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full transition ${item.status === 'open' ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-rose-100 text-rose-800 hover:bg-rose-200'}">
+                                ${item.status} &bull; Toggle
+                            </button>
+                            <button onclick="openEditTuitionModal('${item.id}')" title="Edit" class="p-1 text-gray-400 hover:text-blue-600 rounded">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                            </button>
+                            <button onclick="handleDeleteTuition('${item.id}', '${escapeHtml(item.tuition_number)}')" title="Delete" class="p-1 text-gray-400 hover:text-red-600 rounded">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="text-xs text-gray-600 space-y-0.5">
+                        <p><span class="font-semibold text-gray-800">Subjects:</span> ${escapeHtml(item.subjects)}</p>
+                        <p><span class="font-semibold text-gray-800">Class:</span> ${escapeHtml(item.class_name)} | <span class="font-semibold text-gray-800">Area:</span> ${escapeHtml(item.area_city)}</p>
+                        ${item.details ? `<p class="text-[11px] text-gray-500 pt-1 line-clamp-2">${escapeHtml(item.details)}</p>` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function filterAdminTuitions() {
+            const query = document.getElementById('adminSearchInput').value.toLowerCase().trim();
+            const statusFilter = document.getElementById('adminStatusFilter').value;
+
+            let filtered = tuitionsData;
+            if (statusFilter !== 'all') {
+                filtered = filtered.filter(t => t.status === statusFilter);
+            }
+            if (query) {
+                filtered = filtered.filter(t => 
+                    (t.tuition_number && t.tuition_number.toLowerCase().includes(query)) ||
+                    (t.subjects && t.subjects.toLowerCase().includes(query)) ||
+                    (t.class_name && t.class_name.toLowerCase().includes(query)) ||
+                    (t.area_city && t.area_city.toLowerCase().includes(query))
+                );
+            }
+            renderAdminTuitions(filtered);
+        }
+
+        /**
+         * Admin Actions: Add / Edit / Delete / Toggle Status
+         */
+        function openAddTuitionModal() {
+            modalTitle.textContent = 'Add New Tuition';
+            tuitionForm.reset();
+            document.getElementById('formTuitionId').value = '';
+            document.getElementById('formStatus').value = 'open';
+            tuitionModal.classList.remove('hidden');
+        }
+
+        function openEditTuitionModal(id) {
+            const item = tuitionsData.find(t => t.id === id);
+            if (!item) return;
+
+            modalTitle.textContent = `Edit Tuition #${item.tuition_number}`;
+            document.getElementById('formTuitionId').value = item.id;
+            document.getElementById('formTuitionNumber').value = item.tuition_number;
+            document.getElementById('formStatus').value = item.status;
+            document.getElementById('formSubjects').value = item.subjects;
+            document.getElementById('formClass').value = item.class_name;
+            document.getElementById('formAreaCity').value = item.area_city;
+            document.getElementById('formDetails').value = item.details || '';
+
+            tuitionModal.classList.remove('hidden');
+        }
+
+        function closeTuitionModal() {
+            tuitionModal.classList.add('hidden');
+            tuitionForm.reset();
+        }
+
+        async function handleSaveTuition(e) {
+            e.preventDefault();
+            const id = document.getElementById('formTuitionId').value;
+            const tuitionNumber = document.getElementById('formTuitionNumber').value.trim();
+            const status = document.getElementById('formStatus').value;
+            const subjects = document.getElementById('formSubjects').value.trim();
+            const className = document.getElementById('formClass').value.trim();
+            const areaCity = document.getElementById('formAreaCity').value.trim();
+            const details = document.getElementById('formDetails').value.trim();
+
+            const submitBtn = document.getElementById('formSubmitBtn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Saving...';
+
+            try {
+                if (id) {
+                    // Update
+                    const { error } = await supabaseClient
+                        .from('tuitions')
+                        .update({
+                            tuition_number: tuitionNumber,
+                            status: status,
+                            subjects: subjects,
+                            class_name: className,
+                            area_city: areaCity,
+                            details: details,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', id);
+
+                    if (error) throw error;
+                } else {
+                    // Insert
+                    const { error } = await supabaseClient
+                        .from('tuitions')
+                        .insert([{
+                            tuition_number: tuitionNumber,
+                            status: status,
+                            subjects: subjects,
+                            class_name: className,
+                            area_city: areaCity,
+                            details: details,
+                            created_by: currentUser.id
+                        }]);
+
+                    if (error) throw error;
+                }
+
+                closeTuitionModal();
+                await loadTuitions();
+            } catch (err) {
+                alert('Failed to save tuition: ' + err.message);
+                console.error(err);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Save Tuition';
+            }
+        }
+
+        async function toggleTuitionStatus(id, currentStatus) {
+            const nextStatus = currentStatus === 'open' ? 'closed' : 'open';
+            try {
+                const { error } = await supabaseClient
+                    .from('tuitions')
+                    .update({ status: nextStatus, updated_at: new Date().toISOString() })
+                    .eq('id', id);
+
+                if (error) throw error;
+                await loadTuitions();
+            } catch (err) {
+                alert('Status update failed: ' + err.message);
+            }
+        }
+
+        async function handleDeleteTuition(id, tuitionNumber) {
+            if (!confirm(`Are you sure you want to delete Tuition #${tuitionNumber}?`)) return;
+            try {
+                const { error } = await supabaseClient
+                    .from('tuitions')
+                    .delete()
+                    .eq('id', id);
+
+                if (error) throw error;
+                await loadTuitions();
+            } catch (err) {
+                alert('Failed to delete tuition: ' + err.message);
+            }
+        }
+
+        /**
+         * Configuration Modal Handlers
+         */
+        function openConfigModal() {
+            document.getElementById('configUrlInput').value = APP_CONFIG.SUPABASE_URL.includes('YOUR_PROJECT_ID') ? '' : APP_CONFIG.SUPABASE_URL;
+            document.getElementById('configKeyInput').value = APP_CONFIG.SUPABASE_ANON_KEY.includes('YOUR_SUPABASE_ANON_KEY') ? '' : APP_CONFIG.SUPABASE_ANON_KEY;
+            configModal.classList.remove('hidden');
+        }
+
+        function closeConfigModal() {
+            configModal.classList.add('hidden');
+        }
+
+        function saveConfigFromModal() {
+            const url = document.getElementById('configUrlInput').value.trim();
+            const key = document.getElementById('configKeyInput').value.trim();
+
+            if (!url || !key) {
+                alert('Please enter both Supabase URL and Anon Key');
+                return;
+            }
+
+            localStorage.setItem('cioal_supabase_url', url);
+            localStorage.setItem('cioal_supabase_key', key);
+            APP_CONFIG.SUPABASE_URL = url;
+            APP_CONFIG.SUPABASE_ANON_KEY = key;
+
+            closeConfigModal();
+            window.location.reload();
+        }
+
+        // Helper to prevent XSS
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
     </script>
 </body>
 </html>
