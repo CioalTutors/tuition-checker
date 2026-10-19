@@ -282,6 +282,12 @@
                         <p class="text-xs text-gray-500">Add, edit, open, or close tuition postings</p>
                     </div>
                     <div class="flex items-center space-x-2">
+                        <button onclick="openManageTutorsModal()" class="flex items-center justify-center space-x-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 font-bold text-xs sm:text-sm py-2 px-3 rounded-xl border border-blue-200 shadow-sm transition">
+                            <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+                            </svg>
+                            <span>Manage Tutors</span>
+                        </button>
                         <button onclick="promptAddAllowedTeacher()" class="flex items-center justify-center space-x-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs sm:text-sm py-2 px-3 rounded-xl border border-emerald-200 shadow-sm transition">
                             <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
@@ -311,8 +317,11 @@
                         <span class="text-xs text-rose-700 font-medium">Closed</span>
                         <p id="statClosed" class="text-lg font-black text-rose-800 mt-0.5">0</p>
                     </div>
-                    <div class="bg-blue-50 p-3 rounded-xl border border-blue-200 text-center">
-                        <span class="text-xs text-blue-700 font-medium">Approved Tutors</span>
+                    <div onclick="openManageTutorsModal()" class="bg-blue-50 p-3 rounded-xl border border-blue-200 text-center cursor-pointer hover:bg-blue-100 hover:border-blue-300 transition group" title="Click to view and manage approved tutors">
+                        <div class="flex items-center justify-center space-x-1">
+                            <span class="text-xs text-blue-700 font-medium">Approved Tutors</span>
+                            <svg class="w-3 h-3 text-blue-500 opacity-60 group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        </div>
                         <p id="statTutorsCount" class="text-lg font-black text-blue-800 mt-0.5">-</p>
                     </div>
                 </div>
@@ -436,6 +445,34 @@
             <div class="flex items-center justify-end space-x-2 mt-5">
                 <button onclick="closeConfigModal()" class="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
                 <button onclick="saveConfigFromModal()" class="px-5 py-2 text-xs font-bold text-white bg-brand-600 hover:bg-brand-700 rounded-lg shadow">Save & Reload</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 5. MANAGE APPROVED TUTORS MODAL -->
+    <div id="manageTutorsModal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-gray-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-gray-100 flex flex-col max-h-[85vh]">
+            <div class="flex items-center justify-between pb-3 border-b border-gray-100">
+                <div>
+                    <h3 class="text-lg font-bold text-gray-900">Manage Approved Tutors</h3>
+                    <p class="text-xs text-gray-500">Revoke access or view approved emails</p>
+                </div>
+                <button onclick="closeManageTutorsModal()" class="text-gray-400 hover:text-gray-600 p-1">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            
+            <div class="my-3">
+                <input type="text" id="tutorSearchInput" oninput="filterTutorsList()" placeholder="Search tutor email..." class="w-full px-3 py-2 text-xs sm:text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+            </div>
+
+            <div id="tutorsListContainer" class="flex-grow overflow-y-auto divide-y divide-gray-100 min-h-[200px] max-h-[50vh] pr-1">
+                <!-- Tutors list items -->
+            </div>
+
+            <div class="pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
+                <span id="tutorCountDisplay">Loading...</span>
+                <button onclick="promptAddAllowedTeacher()" class="text-xs font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">+ Add Email</button>
             </div>
         </div>
     </div>
@@ -1391,6 +1428,88 @@
                 }
             } catch (err) {
                 alert(`Error: ${err.message}`);
+            }
+        }
+
+        /**
+         * Manage Approved Tutors Modal Handlers
+         */
+        let allApprovedTutors = [];
+
+        async function openManageTutorsModal() {
+            if (userProfile?.role !== 'admin') return;
+            document.getElementById('manageTutorsModal').classList.remove('hidden');
+            await loadApprovedTutorsList();
+        }
+
+        function closeManageTutorsModal() {
+            document.getElementById('manageTutorsModal').classList.add('hidden');
+        }
+
+        async function loadApprovedTutorsList() {
+            const container = document.getElementById('tutorsListContainer');
+            container.innerHTML = '<div class="p-8 text-center text-xs text-gray-400">Loading tutors...</div>';
+            try {
+                const { data, error } = await supabaseClient
+                    .from('allowed_teachers')
+                    .select('email, created_at')
+                    .order('email', { ascending: true });
+                if (!error && data) {
+                    allApprovedTutors = data;
+                    renderTutorsList(allApprovedTutors);
+                } else {
+                    container.innerHTML = '<div class="p-4 text-center text-xs text-rose-500">Error loading list</div>';
+                }
+            } catch(e) {
+                container.innerHTML = '<div class="p-4 text-center text-xs text-rose-500">Error loading list</div>';
+            }
+        }
+
+        function renderTutorsList(list) {
+            const container = document.getElementById('tutorsListContainer');
+            const countDisplay = document.getElementById('tutorCountDisplay');
+            countDisplay.textContent = `Showing ${list.length} approved tutors`;
+            if (list.length === 0) {
+                container.innerHTML = '<div class="p-8 text-center text-xs text-gray-400">No matching tutors found.</div>';
+                return;
+            }
+            container.innerHTML = list.map(item => `
+                <div class="py-2 px-2 flex items-center justify-between hover:bg-gray-50 rounded-lg group">
+                    <span class="text-xs sm:text-sm text-gray-800 font-medium break-all">${escapeHtml(item.email)}</span>
+                    <button onclick="revokeTutorAccess('${escapeHtml(item.email)}')" title="Revoke Access" class="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1.5 rounded-lg transition ml-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function filterTutorsList() {
+            const q = (document.getElementById('tutorSearchInput').value || '').toLowerCase().trim();
+            if (!q) {
+                renderTutorsList(allApprovedTutors);
+            } else {
+                renderTutorsList(allApprovedTutors.filter(t => t.email.toLowerCase().includes(q)));
+            }
+        }
+
+        async function revokeTutorAccess(email) {
+            if (!confirm(`Are you sure you want to revoke access for ${email}? They will immediately lose access to the portal.`)) return;
+            try {
+                const { error } = await supabaseClient
+                    .from('allowed_teachers')
+                    .delete()
+                    .eq('email', email);
+                if (error) {
+                    alert(`Error revoking access: ${error.message}`);
+                } else {
+                    allApprovedTutors = allApprovedTutors.filter(t => t.email !== email);
+                    renderTutorsList(allApprovedTutors);
+                    updateApprovedTutorsCount();
+                }
+            } catch(e) {
+                alert(`Error: ${e.message}`);
             }
         }
 
