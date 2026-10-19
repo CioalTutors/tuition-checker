@@ -189,6 +189,51 @@
                 <p class="text-[11px] text-gray-400 mt-3">Free for tutors. Your email is only used for authentication.</p>
             </div>
 
+            <!-- 2.5. ACCESS RESTRICTED SCREEN (For signed-in users not in the verified teacher whitelist) -->
+            <div id="unauthorizedScreen" class="hidden py-8 px-4 flex flex-col items-center text-center">
+                <div class="w-16 h-16 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mb-4 shadow-sm border border-rose-100">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                    </svg>
+                </div>
+
+                <div class="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-rose-100 text-rose-800 text-xs font-bold uppercase tracking-wider mb-2 border border-rose-200">
+                    <span>Access Restricted</span>
+                </div>
+
+                <h2 class="text-2xl font-black text-gray-900 tracking-tight">Tutor Verification Required</h2>
+                <p class="text-sm text-gray-600 max-w-md mt-2">
+                    You are signed in as <span id="unauthEmail" class="font-bold text-gray-900"></span>. However, this email is not currently listed in our verified tutors database (TUTORS LIST).
+                </p>
+
+                <div class="w-full max-w-md bg-amber-50 border border-amber-200 rounded-xl p-4 my-5 text-left text-xs text-amber-900 space-y-2">
+                    <p class="font-bold text-amber-800 text-sm">How to get access:</p>
+                    <p>&bull; <strong>Already registered?</strong> If you recently submitted your Google Form, verification can take up to 24 hours. Click "Re-check Status" below.</p>
+                    <p>&bull; <strong>Used the wrong Gmail?</strong> Sign out and log in with the exact email address you submitted in the registration form.</p>
+                    <p>&bull; <strong>Need urgent approval?</strong> Contact our coordinator on WhatsApp with your name and registration details.</p>
+                </div>
+
+                <!-- Action buttons -->
+                <div class="flex flex-col sm:flex-row gap-2 w-full max-w-md">
+                    <button onclick="recheckAuthorization()" id="recheckBtn" class="flex-1 flex items-center justify-center space-x-1.5 bg-brand-600 hover:bg-brand-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-sm text-xs transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                        </svg>
+                        <span id="recheckBtnText">Re-check Status</span>
+                    </button>
+                    <button onclick="contactCoordinatorForVerification()" class="flex-1 flex items-center justify-center space-x-1.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 px-4 rounded-xl shadow-sm text-xs transition">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/>
+                        </svg>
+                        <span>WhatsApp Coordinator</span>
+                    </button>
+                </div>
+
+                <button onclick="handleSignOut()" class="mt-4 text-xs text-gray-500 hover:text-gray-700 underline">
+                    Sign Out & Switch Account
+                </button>
+            </div>
+
             <!-- 3. TEACHER VIEW: BROWSE OPEN TUITIONS -->
             <div id="teacherView" class="hidden space-y-4">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-gray-100 gap-2">
@@ -406,6 +451,10 @@
 
         const loadingScreen = document.getElementById('loadingScreen');
         const authScreen = document.getElementById('authScreen');
+        const unauthorizedScreen = document.getElementById('unauthorizedScreen');
+        const unauthEmail = document.getElementById('unauthEmail');
+        const recheckBtn = document.getElementById('recheckBtn');
+        const recheckBtnText = document.getElementById('recheckBtnText');
         const teacherView = document.getElementById('teacherView');
         const adminView = document.getElementById('adminView');
 
@@ -421,6 +470,10 @@
         const tuitionForm = document.getElementById('tuitionForm');
         const modalTitle = document.getElementById('modalTitle');
         const configModal = document.getElementById('configModal');
+
+        // Whitelist cache
+        let verifiedTeachersCache = null;
+        let lastTeacherCacheTime = 0;
 
         /**
          * Initialize App on Load
@@ -457,12 +510,119 @@
         }
 
         /**
+         * Check Teacher Authorization against TUTORS LIST Google Sheet
+         */
+        async function checkTeacherAuthorization(email, forceRefresh = false) {
+            if (!email) return { authorized: false, role: 'unauthorized' };
+            const cleanEmail = email.toLowerCase().trim();
+
+            // 1. Admins are ALWAYS authorized
+            const adminList = (APP_CONFIG.ADMIN_EMAILS || []).map(e => e.toLowerCase().trim());
+            if (adminList.includes(cleanEmail) || cleanEmail === 'cambridgeigcseoaleveltutors@gmail.com') {
+                return { authorized: true, role: 'admin' };
+            }
+
+            // 2. Check memory & localStorage cache (valid for 10 minutes)
+            const now = Date.now();
+            const CACHE_TTL = 10 * 60 * 1000;
+            if (!forceRefresh) {
+                if (verifiedTeachersCache && (now - lastTeacherCacheTime < CACHE_TTL)) {
+                    if (verifiedTeachersCache.has(cleanEmail)) {
+                        return { authorized: true, role: 'teacher' };
+                    }
+                }
+                try {
+                    const storedCache = localStorage.getItem('cioal_verified_teachers_cache');
+                    const storedTime = parseInt(localStorage.getItem('cioal_verified_teachers_time') || '0', 10);
+                    if (storedCache && (now - storedTime < CACHE_TTL)) {
+                        verifiedTeachersCache = new Set(JSON.parse(storedCache));
+                        lastTeacherCacheTime = storedTime;
+                        if (verifiedTeachersCache.has(cleanEmail)) {
+                            return { authorized: true, role: 'teacher' };
+                        }
+                    }
+                } catch(e) {}
+            }
+
+            // 3. Fetch from Google Sheet CSV (TUTORS LIST -> Form Responses 1)
+            try {
+                const sheetUrl = (APP_CONFIG.TEACHERS_SHEET_CSV_URL || '') + 
+                    (APP_CONFIG.TEACHERS_SHEET_CSV_URL.includes('?') ? '&' : '?') + 't=' + now;
+                const res = await fetch(sheetUrl);
+                if (!res.ok) throw new Error(`Google Sheet response: ${res.status}`);
+                const csv = await res.text();
+
+                const emailSet = new Set();
+                const lines = csv.split(/\r?\n/);
+                if (lines.length > 1) {
+                    // Dynamically locate the "Email" / "Email Address" column index
+                    const headerCells = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
+                    let emailColIdx = headerCells.findIndex(h => h.includes('email'));
+                    if (emailColIdx === -1) emailColIdx = 1; // Fallback to 2nd column
+
+                    for (let i = 1; i < lines.length; i++) {
+                        const line = lines[i];
+                        if (!line.trim()) continue;
+
+                        let col = 0;
+                        let curr = '';
+                        let inQuotes = false;
+                        let emailFound = null;
+
+                        for (let c = 0; c < line.length; c++) {
+                            const char = line[c];
+                            if (char === '"') {
+                                inQuotes = !inQuotes;
+                            } else if (char === ',' && !inQuotes) {
+                                if (col === emailColIdx) {
+                                    emailFound = curr.trim().toLowerCase();
+                                    break;
+                                }
+                                col++;
+                                curr = '';
+                            } else {
+                                curr += char;
+                            }
+                        }
+                        if (emailFound === null && col === emailColIdx) {
+                            emailFound = curr.trim().toLowerCase();
+                        }
+
+                        if (emailFound && emailFound.includes('@')) {
+                            emailSet.add(emailFound);
+                        }
+                    }
+                }
+
+                verifiedTeachersCache = emailSet;
+                lastTeacherCacheTime = now;
+                try {
+                    localStorage.setItem('cioal_verified_teachers_cache', JSON.stringify(Array.from(emailSet)));
+                    localStorage.setItem('cioal_verified_teachers_time', now.toString());
+                } catch(e) {}
+
+                if (emailSet.has(cleanEmail)) {
+                    return { authorized: true, role: 'teacher' };
+                } else {
+                    return { authorized: false, role: 'unauthorized' };
+                }
+            } catch (err) {
+                console.error('Error fetching teacher whitelist:', err);
+                // Fallback: If network issue, use cached whitelist if available
+                if (verifiedTeachersCache && verifiedTeachersCache.has(cleanEmail)) {
+                    return { authorized: true, role: 'teacher' };
+                }
+                return { authorized: false, role: 'unauthorized', error: err.message };
+            }
+        }
+
+        /**
          * Check Auth State & Setup Listeners
          */
         async function checkAuthState() {
             showLoading(true);
 
-            // Safety timeout: Never stay stuck on the loading spinner for more than 1.5s
+            // Safety timeout: Never stay stuck on the loading spinner for more than 2.5s
             const loadingSafetyTimer = setTimeout(() => {
                 showLoading(false);
                 if (currentUser) {
@@ -470,20 +630,22 @@
                 } else {
                     updateUIForGuest();
                 }
-            }, 1500);
+            }, 2500);
 
             try {
                 // Initial session check
                 const { data: { session }, error } = await supabaseClient.auth.getSession();
                 if (session && session.user) {
                     currentUser = session.user;
-                    initUserProfileFromSession();
+                    await initUserProfileFromSession();
                     clearTimeout(loadingSafetyTimer);
                     showLoading(false);
                     updateUIForUser();
 
-                    // Non-blocking background sync
-                    syncBackgroundData();
+                    // Only sync tuitions if user is authorized (Admin or verified Teacher)
+                    if (userProfile?.role === 'admin' || userProfile?.role === 'teacher') {
+                        syncBackgroundData();
+                    }
                 } else {
                     clearTimeout(loadingSafetyTimer);
                     showLoading(false);
@@ -500,10 +662,12 @@
             supabaseClient.auth.onAuthStateChange(async (event, session) => {
                 if (session && session.user) {
                     currentUser = session.user;
-                    initUserProfileFromSession();
+                    await initUserProfileFromSession();
                     showLoading(false);
                     updateUIForUser();
-                    syncBackgroundData();
+                    if (userProfile?.role === 'admin' || userProfile?.role === 'teacher') {
+                        syncBackgroundData();
+                    }
                 } else {
                     currentUser = null;
                     userProfile = null;
@@ -515,32 +679,31 @@
         }
 
         /**
-         * Initialize user profile immediately from session info
+         * Initialize user profile and check whitelist authorization
          */
-        function initUserProfileFromSession() {
+        async function initUserProfileFromSession(forceRefresh = false) {
             if (!currentUser) return;
             const email = (currentUser.email || '').toLowerCase().trim();
-            const adminList = (APP_CONFIG.ADMIN_EMAILS || []).map(e => e.toLowerCase().trim());
-            const isAdmin = adminList.includes(email) || 
-                            email === 'cambridgeigcseoaleveltutors@gmail.com' || 
-                            userProfile?.role === 'admin';
-
             const name = currentUser.user_metadata?.full_name || 
                          currentUser.user_metadata?.name || 
                          email.split('@')[0];
             const avatar = currentUser.user_metadata?.avatar_url || 
                            currentUser.user_metadata?.picture || '';
 
+            const authResult = await checkTeacherAuthorization(email, forceRefresh);
+
             userProfile = {
-                role: isAdmin ? 'admin' : (userProfile?.role || 'teacher'),
+                role: authResult.role, // 'admin', 'teacher', or 'unauthorized'
                 full_name: name,
                 email: email,
                 avatar_url: avatar
             };
 
-            // Admins land on the Admin Dashboard by default
-            if (isAdmin) {
+            // Set default view
+            if (authResult.role === 'admin') {
                 currentView = 'admin';
+            } else if (authResult.role === 'teacher') {
+                currentView = 'teacher';
             }
         }
 
@@ -569,8 +732,8 @@
                     .eq('id', currentUser.id)
                     .single();
 
-                if (data) {
-                    userProfile = data;
+                if (data && data.role === 'admin') {
+                    userProfile.role = 'admin';
                 }
             } catch (e) {
                 console.warn('Profile fetch error, using session defaults:', e);
@@ -592,6 +755,7 @@
             userBar.classList.add('hidden');
             teacherView.classList.add('hidden');
             adminView.classList.add('hidden');
+            unauthorizedScreen.classList.add('hidden');
             authScreen.classList.remove('hidden');
         }
 
@@ -611,26 +775,56 @@
                 userAvatar.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=52c41a&color=fff`;
             }
 
-            // Role Badge & Admin Navigation
-            const email = (currentUser?.email || userProfile?.email || '').toLowerCase().trim();
-            const adminList = (APP_CONFIG.ADMIN_EMAILS || []).map(e => e.toLowerCase().trim());
-            const isAdmin = adminList.includes(email) || 
-                            email === 'cambridgeigcseoaleveltutors@gmail.com' || 
-                            userProfile?.role === 'admin';
-
-            if (isAdmin) {
-                userProfile.role = 'admin';
+            // Check roles and render appropriate view
+            if (userProfile?.role === 'admin') {
+                unauthorizedScreen.classList.add('hidden');
                 roleBadge.textContent = 'Admin';
                 roleBadge.className = 'text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300';
                 adminNav.classList.remove('hidden');
-            } else {
+                switchView(currentView || 'admin');
+            } else if (userProfile?.role === 'teacher') {
+                unauthorizedScreen.classList.add('hidden');
                 roleBadge.textContent = 'Teacher';
                 roleBadge.className = 'text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300';
                 adminNav.classList.add('hidden');
                 currentView = 'teacher';
+                switchView('teacher');
+            } else {
+                // Unauthorized / Not on the whitelist
+                roleBadge.textContent = 'Unverified';
+                roleBadge.className = 'text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300';
+                adminNav.classList.add('hidden');
+                teacherView.classList.add('hidden');
+                adminView.classList.add('hidden');
+                unauthEmail.textContent = currentUser?.email || 'your email';
+                unauthorizedScreen.classList.remove('hidden');
             }
+        }
 
-            switchView(currentView);
+        /**
+         * Re-check Authorization from Google Sheet (Force fresh fetch)
+         */
+        async function recheckAuthorization() {
+            if (!currentUser) return;
+            recheckBtn.disabled = true;
+            recheckBtnText.textContent = 'Checking list...';
+
+            await initUserProfileFromSession(true); // forceRefresh = true
+            updateUIForUser();
+
+            recheckBtn.disabled = false;
+            recheckBtnText.textContent = 'Re-check Status';
+        }
+
+        /**
+         * Contact Coordinator for Tutor Approval via WhatsApp
+         */
+        function contactCoordinatorForVerification() {
+            const tutorName = userProfile?.full_name || currentUser?.user_metadata?.full_name || 'Tutor';
+            const tutorEmail = currentUser?.email || '';
+            const msg = `Hello CioalTutors, I am ${tutorName} (${tutorEmail}). I have submitted my tutor registration form, please verify my email so I can access the tuition portal.`;
+            const waUrl = `https://wa.me/${APP_CONFIG.WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`;
+            window.open(waUrl, '_blank');
         }
 
         function switchView(view) {
