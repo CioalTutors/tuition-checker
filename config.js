@@ -18,8 +18,9 @@ const APP_CONFIG = {
   // Admin emails who have full access to the Admin Dashboard
   ADMIN_EMAILS: ["cambridgeigcseoaleveltutors@gmail.com"],
 
-  // Verified Tutors Google Sheet URL (TUTORS LIST -> Form Responses 1 -> Email Address column)
-  TEACHERS_SHEET_CSV_URL: "https://docs.google.com/spreadsheets/d/1tb4lnBTw6f8Pa6Iko_xQvMFydHtjWsjHCIaxLkNRDVc/export?format=csv&gid=398350631"
+  // Secure tutor verification is handled via Supabase 'allowed_teachers' table.
+  // The Google Sheet remains 100% PRIVATE to prevent exposing tutor CNICs, phones & resumes.
+  TEACHERS_SHEET_CSV_URL: ""
 };
 
 // Check if credentials have been saved via browser settings modal

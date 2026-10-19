@@ -281,18 +281,26 @@
                         </div>
                         <p class="text-xs text-gray-500">Add, edit, open, or close tuition postings</p>
                     </div>
-                    <button onclick="openAddTuitionModal()" class="flex items-center justify-center space-x-1.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs sm:text-sm py-2 px-4 rounded-xl shadow-md transition">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-                        </svg>
-                        <span>Add New Tuition</span>
-                    </button>
+                    <div class="flex items-center space-x-2">
+                        <button onclick="promptAddAllowedTeacher()" class="flex items-center justify-center space-x-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs sm:text-sm py-2 px-3 rounded-xl border border-emerald-200 shadow-sm transition">
+                            <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
+                            </svg>
+                            <span>Approve Tutor</span>
+                        </button>
+                        <button onclick="openAddTuitionModal()" class="flex items-center justify-center space-x-1.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs sm:text-sm py-2 px-4 rounded-xl shadow-md transition">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                            </svg>
+                            <span>Add New Tuition</span>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Stats Overview -->
-                <div class="grid grid-cols-3 gap-3">
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div class="bg-gray-50 p-3 rounded-xl border border-gray-200 text-center">
-                        <span class="text-xs text-gray-500 font-medium">Total</span>
+                        <span class="text-xs text-gray-500 font-medium">Total Postings</span>
                         <p id="statTotal" class="text-lg font-black text-gray-900 mt-0.5">0</p>
                     </div>
                     <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-200 text-center">
@@ -302,6 +310,10 @@
                     <div class="bg-rose-50 p-3 rounded-xl border border-rose-200 text-center">
                         <span class="text-xs text-rose-700 font-medium">Closed</span>
                         <p id="statClosed" class="text-lg font-black text-rose-800 mt-0.5">0</p>
+                    </div>
+                    <div class="bg-blue-50 p-3 rounded-xl border border-blue-200 text-center">
+                        <span class="text-xs text-blue-700 font-medium">Approved Tutors</span>
+                        <p id="statTutorsCount" class="text-lg font-black text-blue-800 mt-0.5">-</p>
                     </div>
                 </div>
 
@@ -522,7 +534,24 @@
                 return { authorized: true, role: 'admin' };
             }
 
-            // 2. Check memory & localStorage cache (valid for 10 minutes)
+            // 2. Check Supabase 'allowed_teachers' table securely (Zero Data Leak via RLS)
+            if (supabaseClient && currentUser) {
+                try {
+                    const { data, error } = await supabaseClient
+                        .from('allowed_teachers')
+                        .select('email')
+                        .ilike('email', cleanEmail)
+                        .maybeSingle();
+
+                    if (!error && data && data.email) {
+                        return { authorized: true, role: 'teacher' };
+                    }
+                } catch (dbErr) {
+                    console.warn('Supabase allowed_teachers check:', dbErr);
+                }
+            }
+
+            // 3. Check memory & localStorage cache (valid for 10 minutes)
             const now = Date.now();
             const CACHE_TTL = 10 * 60 * 1000;
             if (!forceRefresh) {
@@ -544,76 +573,72 @@
                 } catch(e) {}
             }
 
-            // 3. Fetch from Google Sheet CSV (TUTORS LIST -> Form Responses 1)
-            try {
-                const sheetUrl = (APP_CONFIG.TEACHERS_SHEET_CSV_URL || '') + 
-                    (APP_CONFIG.TEACHERS_SHEET_CSV_URL.includes('?') ? '&' : '?') + 't=' + now;
-                const res = await fetch(sheetUrl);
-                if (!res.ok) throw new Error(`Google Sheet response: ${res.status}`);
-                const csv = await res.text();
+            // 4. Optional fallback to Google Sheet CSV (only if configured and accessible)
+            if (APP_CONFIG.TEACHERS_SHEET_CSV_URL) {
+                try {
+                    const sheetUrl = (APP_CONFIG.TEACHERS_SHEET_CSV_URL || '') + 
+                        (APP_CONFIG.TEACHERS_SHEET_CSV_URL.includes('?') ? '&' : '?') + 't=' + now;
+                    const res = await fetch(sheetUrl);
+                    if (res.ok) {
+                        const csv = await res.text();
+                        const emailSet = new Set();
+                        const lines = csv.split(/\r?\n/);
+                        if (lines.length > 1) {
+                            const headerCells = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
+                            let emailColIdx = headerCells.findIndex(h => h.includes('email'));
+                            if (emailColIdx === -1) emailColIdx = 1;
 
-                const emailSet = new Set();
-                const lines = csv.split(/\r?\n/);
-                if (lines.length > 1) {
-                    // Dynamically locate the "Email" / "Email Address" column index
-                    const headerCells = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
-                    let emailColIdx = headerCells.findIndex(h => h.includes('email'));
-                    if (emailColIdx === -1) emailColIdx = 1; // Fallback to 2nd column
+                            for (let i = 1; i < lines.length; i++) {
+                                const line = lines[i];
+                                if (!line.trim()) continue;
 
-                    for (let i = 1; i < lines.length; i++) {
-                        const line = lines[i];
-                        if (!line.trim()) continue;
-
-                        let col = 0;
-                        let curr = '';
-                        let inQuotes = false;
-                        let emailFound = null;
-
-                        for (let c = 0; c < line.length; c++) {
-                            const char = line[c];
-                            if (char === '"') {
-                                inQuotes = !inQuotes;
-                            } else if (char === ',' && !inQuotes) {
-                                if (col === emailColIdx) {
-                                    emailFound = curr.trim().toLowerCase();
-                                    break;
+                                let col = 0, curr = '', inQuotes = false, emailFound = null;
+                                for (let c = 0; c < line.length; c++) {
+                                    const char = line[c];
+                                    if (char === '"') {
+                                        inQuotes = !inQuotes;
+                                    } else if (char === ',' && !inQuotes) {
+                                        if (col === emailColIdx) {
+                                            emailFound = curr.trim().toLowerCase();
+                                            break;
+                                        }
+                                        col++;
+                                        curr = '';
+                                    } else {
+                                        curr += char;
+                                    }
                                 }
-                                col++;
-                                curr = '';
-                            } else {
-                                curr += char;
+                                if (emailFound === null && col === emailColIdx) {
+                                    emailFound = curr.trim().toLowerCase();
+                                }
+                                if (emailFound && emailFound.includes('@')) {
+                                    emailSet.add(emailFound);
+                                }
                             }
                         }
-                        if (emailFound === null && col === emailColIdx) {
-                            emailFound = curr.trim().toLowerCase();
-                        }
 
-                        if (emailFound && emailFound.includes('@')) {
-                            emailSet.add(emailFound);
+                        verifiedTeachersCache = emailSet;
+                        lastTeacherCacheTime = now;
+                        try {
+                            localStorage.setItem('cioal_verified_teachers_cache', JSON.stringify(Array.from(emailSet)));
+                            localStorage.setItem('cioal_verified_teachers_time', now.toString());
+                        } catch(e) {}
+
+                        if (emailSet.has(cleanEmail)) {
+                            return { authorized: true, role: 'teacher' };
                         }
                     }
+                } catch (err) {
+                    console.warn('Google Sheet fallback fetch failed (expected if sheet is private):', err);
                 }
-
-                verifiedTeachersCache = emailSet;
-                lastTeacherCacheTime = now;
-                try {
-                    localStorage.setItem('cioal_verified_teachers_cache', JSON.stringify(Array.from(emailSet)));
-                    localStorage.setItem('cioal_verified_teachers_time', now.toString());
-                } catch(e) {}
-
-                if (emailSet.has(cleanEmail)) {
-                    return { authorized: true, role: 'teacher' };
-                } else {
-                    return { authorized: false, role: 'unauthorized' };
-                }
-            } catch (err) {
-                console.error('Error fetching teacher whitelist:', err);
-                // Fallback: If network issue, use cached whitelist if available
-                if (verifiedTeachersCache && verifiedTeachersCache.has(cleanEmail)) {
-                    return { authorized: true, role: 'teacher' };
-                }
-                return { authorized: false, role: 'unauthorized', error: err.message };
             }
+
+            // Fallback: If network issue, use cached whitelist if available
+            if (verifiedTeachersCache && verifiedTeachersCache.has(cleanEmail)) {
+                return { authorized: true, role: 'teacher' };
+            }
+
+            return { authorized: false, role: 'unauthorized' };
         }
 
         /**
@@ -1091,6 +1116,7 @@
             statTotal.textContent = tuitionsData.length;
             statOpen.textContent = tuitionsData.filter(t => t.status === 'open').length;
             statClosed.textContent = tuitionsData.filter(t => t.status === 'closed').length;
+            updateApprovedTutorsCount();
 
             if (list.length === 0) {
                 adminTuitionsList.innerHTML = `
@@ -1323,6 +1349,48 @@
                     .eq('id', id);
             } catch (err) {
                 console.warn('Deleted locally, database sync pending:', err);
+            }
+        }
+
+        async function updateApprovedTutorsCount() {
+            if (!supabaseClient || userProfile?.role !== 'admin') return;
+            try {
+                const { count, error } = await supabaseClient
+                    .from('allowed_teachers')
+                    .select('*', { count: 'exact', head: true });
+                if (!error && count !== null) {
+                    const el = document.getElementById('statTutorsCount');
+                    if (el) el.textContent = count.toLocaleString();
+                }
+            } catch (e) {
+                console.warn('Could not count approved teachers:', e);
+            }
+        }
+
+        async function promptAddAllowedTeacher() {
+            const email = prompt("Enter tutor's Gmail address to approve:");
+            if (!email) return;
+            const clean = email.trim().toLowerCase();
+            if (!clean.includes('@') || !clean.includes('.')) {
+                alert('Please enter a valid email address.');
+                return;
+            }
+            try {
+                const { error } = await supabaseClient
+                    .from('allowed_teachers')
+                    .insert([{ email: clean }]);
+                if (error) {
+                    if (error.code === '23505') {
+                        alert(`Notice: ${clean} is ALREADY on the approved list.`);
+                    } else {
+                        alert(`Error: ${error.message}`);
+                    }
+                } else {
+                    alert(`Success: ${clean} has been approved as a tutor!`);
+                    updateApprovedTutorsCount();
+                }
+            } catch (err) {
+                alert(`Error: ${err.message}`);
             }
         }
 
